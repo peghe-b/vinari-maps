@@ -1,0 +1,11 @@
+# Python packages for scripts/clip.py, gate.py and manifest.py, pinned.
+# The four packages are permissive (no GPL/AGPL): pyosmium BSD-2-Clause,
+# shapely BSD-3-Clause, pyproj MIT, numpy BSD-3-Clause. The shapely wheel
+# bundles GEOS (LGPL-2.1). CI use only, nothing here ships.
+# These versions need Python 3.12 or newer (the ubuntu-24.04 runner has 3.12).
+# CI installs requirements.lock (these plus their dependencies, with hashes);
+# regenerate it whenever this file changes.
+osmium==4.3.1
+shapely==2.1.2
+pyproj==3.8.0
+numpy==2.5.3

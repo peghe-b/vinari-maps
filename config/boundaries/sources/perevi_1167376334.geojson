@@ -1,0 +1,26 @@
+{"type":"FeatureCollection","features":[{"type":"Feature",
+"properties":{"osm_type": "way", "osm_id": 1167376334, "osm_version": 1, "osm_timestamp": "2023-04-29T15:54:00Z", "name": "Пъереу", "name:en": "Perevi", "name:ka": "პერევი", "fetched_at": "2026-09-25T22:23:28+00:00", "source": "https://api.openstreetmap.org/api/0.6/way/1167376334/full", "licence": "ODbL 1.0, (c) OpenStreetMap contributors", "used_as": "source of the hand-made polygon boundaries/perevi_village_handmade.geojson"},
+"geometry":{"type":"MultiPolygon","coordinates":[
+[
+[
+[43.5967058,42.3585003],
+[43.5962176,42.3580127],
+[43.5962444,42.3576639],
+[43.5959709,42.3570574],
+[43.596046,42.3567006],
+[43.5957751,42.3561873],
+[43.5959762,42.3558781],
+[43.5965046,42.3556997],
+[43.5968184,42.3559395],
+[43.5969526,42.3565381],
+[43.5976177,42.3567601],
+[43.5985941,42.3568751],
+[43.5990822,42.3571843],
+[43.5989481,42.3575727],
+[43.5978913,42.3575212],
+[43.5974032,42.3577432],
+[43.5971081,42.3582942],
+[43.5967058,42.3585003]
+]
+]
+]}}]}

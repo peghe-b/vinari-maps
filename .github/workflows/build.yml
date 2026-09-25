@@ -1,0 +1,290 @@
+# Weekly build of the Georgia car-routing tiles for the Vinari navigator.
+#
+# Three jobs:
+# - boundaries: compares the frozen no-go polygons with live OSM. It fails
+#   (so GitHub emails the owner) when a line moved, and never blocks the
+#   build or the release, which keep using the frozen copies.
+# - build (read-only token): download and verify the OSM extract, run the
+#   safety clip, build the tiles, start Valhalla on the new tiles and run
+#   the safety gate, write the manifest, and hand the tested files on.
+# - publish (the only job that can write): checks the handed-on tar against
+#   the manifest and creates the GitHub Release. It runs only when build
+#   passed, and only on the default branch.
+#
+# Runs on GitHub's free runners (this repo is public). Nothing here needs a
+# secret: the release uses the built-in GITHUB_TOKEN.
+
+name: build
+
+on:
+  push:                    # every change to the pipeline rebuilds and re-tests at once
+    branches: [main]
+    paths-ignore: ["**.md", "LICENSE"]
+  schedule:
+    - cron: "37 3 * * 1"   # Mondays 03:37 UTC (off the hour, when runners are less busy)
+  workflow_dispatch:
+
+permissions: {}             # every job asks for exactly what it needs
+
+concurrency:
+  group: build-tiles
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash             # bash -eo pipefail: a failing command in a pipe fails the step
+
+env:
+  # Valhalla 3.6.3 is the version valhalla-mobile 0.6.3 embeds; tiles and
+  # library must match. Pinned by digest (the multi-arch index), checked
+  # against ghcr.io on 2026-09-26.
+  VALHALLA_IMAGE: ghcr.io/valhalla/valhalla-scripted:3.6.3@sha256:e688a89f7a86880aabcc8b2eec9bcefdcb639d603ee90a928a6d3c7d92d58486
+  VALHALLA_VERSION: "3.6.3"
+  PBF_URL: https://download.geofabrik.de/europe/georgia-latest.osm.pbf
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  TAG_PATTERN: '^osm-[0-9]{8}T[0-9]{6}Z(-[0-9a-f]{8})?$'
+
+jobs:
+  boundaries:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Python tools
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install --quiet --only-binary :all: --require-hashes -r requirements.lock
+
+      - name: Compare frozen boundaries with live OSM (fails when a line moved)
+        run: .venv/bin/python scripts/fetch_boundaries.py --check --fail-on-change
+
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      contents: read        # checkout, and reading the previous release's manifest
+    outputs:
+      tag: ${{ steps.manifest.outputs.tag }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Python tools
+        run: |
+          mkdir -p build/valhalla build/logs
+          python3 -m venv .venv
+          .venv/bin/pip install --quiet --only-binary :all: --require-hashes -r requirements.lock
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Unit tests
+        run: |
+          if python scripts/test_clip.py > build/logs/unit_tests.log 2>&1; then
+            tail -n 1 build/logs/unit_tests.log
+          else
+            tail -n 60 build/logs/unit_tests.log; exit 1
+          fi
+          if grep -q "skipped" build/logs/unit_tests.log; then
+            echo "::error::unit tests were skipped; a Python package is missing"; exit 1
+          fi
+
+      - name: Download and verify the Georgia extract
+        run: |
+          # 'latest' redirects to a dated file. Resolve it once, then fetch the
+          # file and its .md5 from the same dated URL so they always match.
+          url=$(curl -fsSIL --retry 5 -o /dev/null -w '%{url_effective}' "$PBF_URL")
+          if ! [[ "$url" =~ ^https://download\.geofabrik\.de/europe/georgia-[0-9]{6}\.osm\.pbf$ ]]; then
+            echo "::error::unexpected extract URL '$url'"; exit 1
+          fi
+          echo "extract: $url"
+          curl -fsSL --retry 5 -o build/georgia-latest.osm.pbf "$url"
+          curl -fsSL --retry 5 -o build/georgia-latest.osm.pbf.md5 "$url.md5"
+          expected=$(cut -d' ' -f1 build/georgia-latest.osm.pbf.md5)
+          actual=$(md5sum build/georgia-latest.osm.pbf | cut -d' ' -f1)
+          if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
+            echo "::error::md5 mismatch: expected '$expected', got '$actual'"; exit 1
+          fi
+          echo "PBF_RESOLVED_URL=$url" >> "$GITHUB_ENV"
+          echo "md5 ok, $(stat -c %s build/georgia-latest.osm.pbf) bytes"
+
+      - name: Safety clip (occupied areas, Perevi, everything outside Georgia)
+        run: |
+          python scripts/clip.py \
+            --input build/georgia-latest.osm.pbf \
+            --output build/valhalla/georgia-clipped.osm.pbf \
+            --zones build/nogo_zones.geojson \
+            --report build/clip_report.json
+
+      - name: Pull the pinned Valhalla image
+        run: docker pull --quiet "$VALHALLA_IMAGE"
+
+      - name: Build car-only tiles
+        timeout-minutes: 60
+        run: bash scripts/build_tiles.sh build/valhalla build/logs
+
+      - name: Start Valhalla from the new tile tar
+        run: |
+          docker run -d --name valhalla-gate --user "$(id -u):$(id -g)" \
+            -p 127.0.0.1:8002:8002 -v "$PWD/build/valhalla:/custom_files" \
+            --entrypoint valhalla_service "$VALHALLA_IMAGE" \
+            /custom_files/valhalla.json 2 > /dev/null
+          for i in $(seq 1 60); do
+            if curl -fs --max-time 5 http://127.0.0.1:8002/status > /dev/null; then
+              echo "valhalla up: $(curl -fs --max-time 5 http://127.0.0.1:8002/status)"; exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Valhalla did not start"; docker logs --tail 40 valhalla-gate; exit 1
+
+      - name: Export every edge for the gate
+        run: |
+          # Output: one row per stretch of road, encoded shape then names.
+          # Rows end with 0x1E, not a newline (a street name may hold one);
+          # columns are split by NUL. --unnamed and --ferries: export everything.
+          if ! docker run --rm --user "$(id -u):$(id -g)" -v "$PWD/build/valhalla:/custom_files" \
+              --entrypoint valhalla_export_edges "$VALHALLA_IMAGE" \
+              -c /custom_files/valhalla.json --unnamed --ferries --row $'\x1e' \
+              > build/edges.bin 2> build/logs/export_edges.log; then
+            tail -n 20 build/logs/export_edges.log; exit 1
+          fi
+          echo "edges export: $(stat -c %s build/edges.bin) bytes"
+
+      - name: Safety gate (must pass before any release)
+        timeout-minutes: 30
+        run: |
+          python scripts/gate.py --url http://127.0.0.1:8002 \
+            --edges build/edges.bin --tar build/valhalla/valhalla_tiles.tar \
+            --zones build/nogo_zones.geojson --clip-report build/clip_report.json \
+            --results build/gate_results.json --expect-version "$VALHALLA_VERSION"
+
+      - name: Stop Valhalla
+        if: always()
+        run: |
+          docker logs valhalla-gate > build/logs/valhalla_service.log 2>&1 || true
+          docker rm -f valhalla-gate > /dev/null 2>&1 || true
+
+      - name: Fetch the previous release's manifest (edge-count check)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if gh release download --pattern manifest.json --output build/previous_manifest.json 2> /dev/null; then
+            echo "previous release: $(jq -r .tag build/previous_manifest.json)"
+          else
+            rm -f build/previous_manifest.json
+            echo "no previous release to compare with"
+          fi
+
+      - name: Write manifest
+        id: manifest
+        run: |
+          # A plain assignment, so a failing command fails the step.
+          tag=$(python scripts/manifest.py --tag-only --pbf build/georgia-latest.osm.pbf --commit "$GITHUB_SHA")
+          if ! [[ "$tag" =~ $TAG_PATTERN ]]; then
+            echo "::error::bad release tag '$tag'"; exit 1
+          fi
+          previous=()
+          if [ -f build/previous_manifest.json ]; then
+            previous=(--previous-manifest build/previous_manifest.json)
+          fi
+          python scripts/manifest.py --pbf build/georgia-latest.osm.pbf --commit "$GITHUB_SHA" \
+            --pbf-url "$PBF_RESOLVED_URL" \
+            --tar build/valhalla/valhalla_tiles.tar --zones build/nogo_zones.geojson \
+            --clip-report build/clip_report.json --gate build/gate_results.json \
+            --valhalla-config build/valhalla/valhalla.json --out build/manifest.json \
+            "${previous[@]}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Hand the tested files to the publish job
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: release-files
+          path: |
+            build/valhalla/valhalla_tiles.tar
+            build/manifest.json
+            build/nogo_zones.geojson
+          retention-days: 3
+          if-no-files-found: error
+
+      - name: Keep reports and logs (14 days)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: build-reports
+          path: |
+            build/logs/
+            build/clip_report.json
+            build/gate_results.json
+            build/manifest.json
+          retention-days: 14
+          if-no-files-found: ignore
+
+  publish:
+    needs: build
+    # Scheduled runs always use the default branch. A manual run on any
+    # other branch builds and gates, but never releases.
+    if: github.event_name == 'schedule' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write       # create the release; nothing else runs with this token
+    steps:
+      - name: Fetch the tested files
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: release-files
+          path: out
+
+      - name: Check the files against the manifest
+        run: |
+          for pair in "0 out/valhalla/valhalla_tiles.tar" "1 out/nogo_zones.geojson"; do
+            set -- $pair
+            expected=$(jq -r ".files[$1].sha256" out/manifest.json)
+            actual=$(sha256sum "$2" | cut -d' ' -f1)
+            if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
+              echo "::error::$2: sha256 $actual, manifest says '$expected'"; exit 1
+            fi
+          done
+          echo "tar and zones match the manifest"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.build.outputs.tag }}
+        run: |
+          if ! [[ "$RELEASE_TAG" =~ $TAG_PATTERN ]]; then
+            echo "::error::bad release tag '$RELEASE_TAG'"; exit 1
+          fi
+          # The tag holds the OSM time and the commit, so an existing complete
+          # release means the very same data and code: nothing to do.
+          state=$(gh release view "$RELEASE_TAG" --json isDraft,assets \
+                    -q '(.isDraft|not) and (.assets|length)==3' 2> /dev/null || true)
+          if [ "$state" = "true" ]; then
+            echo "::notice::release $RELEASE_TAG already exists and is complete; nothing to publish"
+            exit 0
+          fi
+          if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
+            echo "::warning::release $RELEASE_TAG exists but is a draft or misses files; replacing it"
+            gh release delete "$RELEASE_TAG" --yes
+            gh api -X DELETE "repos/$GH_REPO/git/refs/tags/$RELEASE_TAG" > /dev/null 2>&1 || true
+          fi
+          {
+            echo "Georgia car-routing tiles for Valhalla $VALHALLA_VERSION, OSM data as of $(jq -r .osm.timestamp out/manifest.json)."
+            echo
+            echo "Safety clip v$(jq -r .clip.config_version out/manifest.json) applied; safety gate: $(jq -r '"\(.gate.checks - .gate.failed)/\(.gate.checks)"' out/manifest.json) checks passed."
+            echo "Check the tar against the sha256 in manifest.json before use."
+            echo
+            echo "Contains information from OpenStreetMap (© OpenStreetMap contributors, https://www.openstreetmap.org/copyright) and from timezone-boundary-builder 2025b, both made available under the Open Database License (ODbL 1.0): https://opendatacommons.org/licenses/odbl/1-0/. These tiles are a derivative database, also under the ODbL 1.0; the method that made them is this repository at commit $GITHUB_SHA: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/tree/$GITHUB_SHA"
+          } > release_notes.md
+          gh release create "$RELEASE_TAG" \
+            out/valhalla/valhalla_tiles.tar out/manifest.json out/nogo_zones.geojson \
+            --target "$GITHUB_SHA" --title "Georgia tiles $RELEASE_TAG" \
+            --notes-file release_notes.md

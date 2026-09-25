@@ -1,0 +1,86 @@
+{
+  "_about": "Safety clip settings for the Georgian road graph. Read by scripts/clip.py, scripts/gate.py and scripts/fetch_boundaries.py. Bump 'version' whenever anything in this file or in config/boundaries/ changes, and say why in 'changelog'. Never change these values automatically.",
+  "version": 2,
+  "changelog": [
+    "1 (2026-09-26): first version. Ids and versions checked live on 2026-09-26 against the OSM API (api.openstreetmap.org/api/0.6/<type>/<id>.json) and with an Overpass query (maps.mail.ru mirror, OSM base 2026-09-25T22:37:56Z); both gave the versions below. Hard buffer 100 m, soft band 100 to 500 m, per the navigation research of 2026-09-26.",
+    "2 (2026-09-26): after review. Perevi: the two OSM copies (relation 15344012 v6, way 1167376334 v1) are replaced by one hand-made polygon, their convex hull pushed out by 100 m, because OSM has no boundary for the village and the landuse patches have gaps of up to 418 m; the OSM copies stay under boundaries/sources/ so --check can see them move. Soft band: roads are now split where they enter the band, and every in-band piece becomes destination-only (before, a road had to lie wholly in the band). Secondary roads and residential_link are no longer exempt, as in the research. Ferries that leave Georgia or touch the no-go area are dropped whole. Segments that leave Georgia between two nodes inside it are cut."
+  ],
+  "metric_crs": "+proj=aeqd +lat_0=42.3 +lon_0=43.4 +ellps=WGS84 +units=m +no_defs",
+  "_metric_crs_note": "Azimuthal equidistant projection centred on Georgia. Inside Georgia its scale error is below 0.05 percent, so a 100 m buffer stays 100 m on the ground.",
+  "country": {
+    "name": "Georgia (internationally recognised border, includes both occupied regions)",
+    "osm_type": "relation",
+    "osm_id": 28699,
+    "osm_version": 538,
+    "file": "boundaries/georgia_28699.geojson",
+    "why": "Everything outside this polygon is removed, so Russian-side roads (Upper Lars A-161, the Roki tunnel north side A-164, the Psou bridges and Veseloye, the Mamison road) can never be routed. The Geofabrik extract reaches about 5 km into Russia."
+  },
+  "no_go": [
+    {
+      "name": "Abkhazia (occupied)",
+      "osm_type": "relation",
+      "osm_id": 1152720,
+      "osm_version": 180,
+      "file": "boundaries/abkhazia_1152720.geojson",
+      "why": "Occupied territory. Law of Georgia on Occupied Territories Art 4 and Criminal Code Art 322-1."
+    },
+    {
+      "name": "South Ossetia / Tskhinvali region (occupied)",
+      "osm_type": "relation",
+      "osm_id": 1152717,
+      "osm_version": 158,
+      "file": "boundaries/south_ossetia_1152717.geojson",
+      "why": "Occupied territory. Law of Georgia on Occupied Territories Art 4 and Criminal Code Art 322-1."
+    },
+    {
+      "name": "Perevi village, Sachkhere municipality (whole village, hand-made)",
+      "hand_made": true,
+      "file": "boundaries/perevi_village_handmade.geojson",
+      "geometry_sha256": "b1a8d9ceeef156ab66172d73285d39528101a819c295add1c855339b523ca44f",
+      "derived_from": [
+        {
+          "osm_type": "relation",
+          "osm_id": 15344012,
+          "osm_version": 6,
+          "file": "boundaries/sources/perevi_15344012.geojson"
+        },
+        {
+          "osm_type": "way",
+          "osm_id": 1167376334,
+          "osm_version": 1,
+          "file": "boundaries/sources/perevi_1167376334.geojson"
+        }
+      ],
+      "method": "Convex hull of relation 15344012 v6 (landuse=residential, place=village, 4 built-up patches, 0.9 km2) and way 1167376334 v1 (the part mapped inside the South Ossetia line), pushed out by 100 m in metric_crs. 2.9 km2. The hard buffer adds another 100 m on top.",
+      "why": "Law on Occupied Territories Art 10(2) names Perevi village. OSM has no administrative boundary for it (is_in lists only Sachkhere Municipality), and the landuse patches have gaps of up to 418 m, so the law's 'village' is drawn by hand here. A literal, untested reading of Art 10(2). Side effect: routes stop about 200 m before the built-up area, also for residents. Checked on 2026-09-26 with a clip simulation on Overpass data: about 525 m more road is removed than with the patches alone, and no legal road within 5 km loses its connection. fetch_boundaries.py --refresh never overwrites this file; --check warns when the sources move or poke out of it."
+    }
+  ],
+  "way_mode": "cut",
+  "_way_mode_note": "'cut': a road that runs into the no-go area or out of Georgia is cut at its last good node, so its legal part stays (the research's method). 'drop': any road with a bad node or segment is removed whole; stricter, but it also deletes legal stretches such as the approach to a border crossing.",
+  "hard_buffer_m": 100,
+  "_hard_buffer_note": "Every road piece inside the no-go area pushed out by this many metres is deleted. clip.py refuses values above 300 m: the S1/E60 motorway passes about 410 m from the line near Khurvaleti.",
+  "soft_band": {
+    "enabled": true,
+    "outer_m": 500,
+    "highway_classes": [
+      "secondary",
+      "secondary_link",
+      "tertiary",
+      "tertiary_link",
+      "unclassified",
+      "residential",
+      "residential_link",
+      "living_street",
+      "service",
+      "track",
+      "road"
+    ],
+    "_note": "A way of these classes is split where it enters or leaves the band (between hard_buffer_m and outer_m from the no-go area); every piece in the band gets motorcar=destination, so Valhalla treats it as destination-only and adds its 600 s penalty to through-routes, while places on it stay reachable. A segment counts as in the band when either end is inside outer_m or the straight line between its ends crosses it. Motorway, trunk and primary roads are never touched, as in the research (S1 runs 410 m from the line). Secondary is not exempt: on 2026-09-26 only one secondary way lay in the band anywhere (194019085, Igoeti to Akhmaji, 337 m, closest 180 m from the line). Ways where cars are already banned or already destination-only are left as they are."
+  },
+  "tag_rules": {
+    "four_wd_only_is_destination": true,
+    "_note": "4wd_only=yes roads get motorcar=destination (same rule as the soft band), so no route uses them as a shortcut but villages at their end stay reachable. This replaces the research's custom graph.lua with a plain tag rewrite that the unit test can check."
+  },
+  "new_way_id_start": 4000000000,
+  "_new_way_id_note": "When a way is cut into several pieces, the first piece keeps its OSM id and the others get fresh ids counting up from here (above every real OSM way id, still below 2^32)."
+}

@@ -1,0 +1,940 @@
+{
+  "_about": "Test data for scripts/gate.py, the safety gate that must pass before any release. Coordinates are WGS84 lat/lon. Every place is a town centre moved onto the nearest car road, so Valhalla snaps it cleanly.",
+  "_method": "Places: the OSM place node of the town (Overpass, maps.mail.ru mirror, OSM data as of 2026-09-25T22:24Z), moved to the nearest vertex of a trunk, primary, secondary, tertiary, unclassified or residential way within 250 m. Stub points: the point on the named OSM way that lies deepest inside the occupied polygon of clip config v1, sampled every 0.5 m (ways fetched from api.openstreetmap.org on 2026-09-26). The ways and the 'driven N m inside' figures come from the navigation research of 2026-09-26, which routed them on the public FOSSGIS Valhalla server before any clip. Version 2 (2026-09-26, after review): every must-fail test has a control leg, a legal point on the approach road at least 600 m from the occupied line and from the state border, which must be routable from the same origin; each control leg was routed on the public FOSSGIS Valhalla server on 2026-09-26 and its shape checked against the v2 no-go area and Georgia's border. The four Russian towns outside Geofabrik's extract are replaced by road vertices 195 to 435 m past the Upper Lars, Mamison, Sadakhlo, Red Bridge and Sarpi crossings, inside the extract. New stub points (84484871, 250174327, 399898439, 480352813) and Kodori targets come from Overpass (overpass-api.de, OSM base 2026-09-25T23:22Z to 23:40Z).",
+  "clip_config_version": 2,
+  "app_request": {
+    "_note": "The navigation request the app sends and the checks it runs around it (README, 'What the app must do'). gate.py runs every must-fail test a third time with these settings. Change this together with the app.",
+    "costing": "auto",
+    "search_cutoff_m": 300,
+    "max_snap_m": 300,
+    "prioritize_bidirectional": true,
+    "alternates": 2,
+    "date_time_type": 0,
+    "refuse_inside": "no_go_hard",
+    "refuse_outside": "georgia",
+    "confirm_inside": "soft_band_outer"
+  },
+  "summer_date": "2026-07-15T10:00",
+  "winter_date": "2026-01-15T10:00",
+  "places": {
+    "tbilisi": {
+      "name": "Tbilisi, Freedom Square",
+      "lat": 41.6935694,
+      "lon": 44.8013304,
+      "source": "OSM place node 1614277087, moved 16 m to a vertex of way 1314387710 (highway=primary)"
+    },
+    "batumi": {
+      "name": "Batumi centre",
+      "lat": 41.6506573,
+      "lon": 41.6361923,
+      "source": "OSM place node 160257516, moved 36 m to a vertex of way 1152779731 (highway=residential)"
+    },
+    "kutaisi": {
+      "name": "Kutaisi, Aghmashenebeli Square",
+      "lat": 42.2717278,
+      "lon": 42.7053626,
+      "source": "OSM place node 218730242, moved 15 m to a vertex of way 1269575003 (highway=primary)"
+    },
+    "telavi": {
+      "name": "Telavi centre",
+      "lat": 41.9197087,
+      "lon": 45.4702048,
+      "source": "OSM place node 218752469, moved 9 m to a vertex of way 101523815 (highway=secondary)"
+    },
+    "stepantsminda": {
+      "name": "Stepantsminda centre",
+      "lat": 42.6582326,
+      "lon": 44.6408941,
+      "source": "OSM place node 274262563, moved 28 m to a vertex of way 1215594687 (highway=trunk)"
+    },
+    "zugdidi": {
+      "name": "Zugdidi centre",
+      "lat": 42.5066969,
+      "lon": 41.8716314,
+      "source": "OSM place node 280679947, moved 58 m to a vertex of way 120002616 (highway=trunk)"
+    },
+    "mestia": {
+      "name": "Mestia, Seti Square",
+      "lat": 43.0440336,
+      "lon": 42.7244738,
+      "source": "OSM place node 375730929, moved 30 m to a vertex of way 99687752 (highway=tertiary)"
+    },
+    "gori": {
+      "name": "Gori centre",
+      "lat": 41.9819964,
+      "lon": 44.1115559,
+      "source": "OSM place node 5683127962, moved 25 m to a vertex of way 207165727 (highway=secondary)"
+    },
+    "khashuri": {
+      "name": "Khashuri centre",
+      "lat": 41.9972566,
+      "lon": 43.5988964,
+      "source": "OSM place node 274202979, moved 4 m to a vertex of way 103771533 (highway=secondary)"
+    },
+    "sachkhere": {
+      "name": "Sachkhere centre",
+      "lat": 42.3399887,
+      "lon": 43.4053054,
+      "source": "OSM place node 387159396, moved 18 m to a vertex of way 100262898 (highway=tertiary)"
+    },
+    "tsalenjikha": {
+      "name": "Tsalenjikha centre",
+      "lat": 42.6135907,
+      "lon": 42.0680255,
+      "source": "OSM place node 311453425, moved 56 m to a vertex of way 102636481 (highway=residential)"
+    },
+    "pshaveli": {
+      "name": "Pshaveli (start of Sh44)",
+      "lat": 42.08173,
+      "lon": 45.4433533,
+      "source": "OSM place node 275565310, moved 0 m to a vertex of way 101355864 (highway=residential)"
+    },
+    "omalo": {
+      "name": "Omalo, Tusheti (end of Sh44)",
+      "lat": 42.3709896,
+      "lon": 45.6331676,
+      "source": "OSM place node 826106795, moved 11 m to a vertex of way 506660515 (highway=residential)"
+    },
+    "oni": {
+      "name": "Oni centre",
+      "lat": 42.5850652,
+      "lon": 43.4423829,
+      "source": "OSM place node 389681534, moved 42 m to a vertex of way 101483659 (highway=residential)"
+    },
+    "kareli": {
+      "name": "Kareli centre",
+      "lat": 42.0215115,
+      "lon": 43.8932338,
+      "source": "OSM place node 280181619, moved 6 m to a vertex of way 102788847 (highway=residential)"
+    },
+    "anaklia": {
+      "name": "Anaklia centre",
+      "lat": 42.3955319,
+      "lon": 41.5654496,
+      "source": "OSM place node 1733993072, moved 27 m to a vertex of way 1154734517 (highway=secondary)"
+    },
+    "sarpi": {
+      "name": "Sarpi, at the Turkish border crossing",
+      "lat": 41.5216724,
+      "lon": 41.5485594,
+      "source": "OSM place node 219991384, moved 39 m to a vertex of way 426106733 (highway=trunk)"
+    },
+    "dusheti": {
+      "name": "Dusheti centre",
+      "lat": 42.0845612,
+      "lon": 44.6959439,
+      "source": "OSM place node 388181553, moved 10 m to a vertex of way 104283589 (highway=secondary)"
+    },
+    "tskhinvali": {
+      "name": "Tskhinvali centre (occupied)",
+      "lat": 42.2256654,
+      "lon": 43.9705053,
+      "source": "OSM place node 2706851374, moved 40 m to a vertex of way 90160382 (highway=residential)"
+    },
+    "akhalgori": {
+      "name": "Akhalgori centre (occupied)",
+      "lat": 42.1218177,
+      "lon": 44.4850561,
+      "source": "OSM place node 387180719, moved 14 m to a vertex of way 238428463 (highway=secondary)"
+    },
+    "gali": {
+      "name": "Gali centre (occupied)",
+      "lat": 42.629019,
+      "lon": 41.7362821,
+      "source": "OSM place node 286418976, moved 78 m to a vertex of way 1291892584 (highway=residential)"
+    },
+    "java": {
+      "name": "Java centre (occupied)",
+      "lat": 42.3905078,
+      "lon": 43.9225853,
+      "source": "OSM place node 448897340, moved 34 m to a vertex of way 170196313 (highway=residential)"
+    },
+    "tkvarcheli": {
+      "name": "Tkvarcheli centre (occupied)",
+      "lat": 42.8470716,
+      "lon": 41.6836577,
+      "source": "OSM place node 286420246, moved 84 m to a vertex of way 84030698 (highway=residential)"
+    },
+    "sukhumi": {
+      "name": "Sukhumi centre (occupied)",
+      "lat": 43.0037765,
+      "lon": 41.0198506,
+      "source": "OSM place node 790323861, moved 73 m to a vertex of way 444252955 (highway=residential)"
+    },
+    "perevi_so": {
+      "name": "Perevi, part inside the South Ossetia line",
+      "lat": 42.3574057,
+      "lon": 43.5975263,
+      "source": "OSM place node 10856142974, moved 35 m to a vertex of way 100264312 (highway=unclassified)"
+    },
+    "perevi_ge": {
+      "name": "Perevi, Georgian-controlled part (no-go: literal reading of Law Art 10(2))",
+      "lat": 42.3667565,
+      "lon": 43.5993469,
+      "source": "OSM place node 539511299, moved 43 m to a vertex of way 100263402 (highway=residential)"
+    },
+    "upper_lars_ru": {
+      "name": "Georgian Military Road (A-161) in Russia, 204 m past the Upper Lars border",
+      "lat": 42.748554,
+      "lon": 44.6243296,
+      "source": "vertex 7 of OSM way 167057004 (highway=trunk, ref А-161): 204 m outside relation 28699, 352 m inside Geofabrik's georgia.poly"
+    },
+    "mamison_ru": {
+      "name": "Ossetian Military Road in Russia, 435 m past the Mamison pass border",
+      "lat": 42.7049763,
+      "lon": 43.7999528,
+      "source": "vertex 167 of OSM way 312186037 (highway=unclassified): 435 m outside relation 28699, 50 m inside georgia.poly. From Racha it is reachable only through South Ossetia."
+    },
+    "sadakhlo_am": {
+      "name": "M-6 in Armenia, 212 m past the Sadakhlo-Bagratashen crossing",
+      "lat": 41.2307638,
+      "lon": 44.83622,
+      "source": "vertex 3 of OSM way 895566288 (highway=trunk, ref Մ-6): 212 m outside relation 28699, 275 m inside georgia.poly"
+    },
+    "red_bridge_az": {
+      "name": "M2 in Azerbaijan, 195 m past the Red Bridge crossing",
+      "lat": 41.3284262,
+      "lon": 45.0756393,
+      "source": "vertex 16 of OSM way 59608186 (highway=trunk, ref M2): 195 m outside relation 28699, 74 m inside georgia.poly. The crossing ways 167440661 and 344773471 carry access=no today, so this test would also pass on tags alone."
+    },
+    "sarpi_tr": {
+      "name": "D 010 in Turkey, 211 m past the Sarpi crossing",
+      "lat": 41.518602,
+      "lon": 41.5473227,
+      "source": "vertex 1 of OSM way 680870202 (highway=trunk, ref D 010): 211 m outside relation 28699, 179 m inside georgia.poly"
+    },
+    "azhara_road": {
+      "name": "Kodori road at Azhara (occupied; named in the law)",
+      "lat": 43.1043477,
+      "lon": 41.7144461,
+      "source": "vertex of OSM way 86254796 (highway=unclassified), 24 m from Azhara place node 2072380962, 12.8 km inside the Abkhazia line"
+    },
+    "chkhalta_road": {
+      "name": "Chkhalta, Kodori valley (occupied)",
+      "lat": 43.0941487,
+      "lon": 41.6756204,
+      "source": "vertex of OSM way 194739689 (highway=service), 38 m from Chkhalta place node 961324565, 13.7 km inside the Abkhazia line"
+    }
+  },
+  "must_succeed": [
+    {
+      "id": "tbilisi-batumi",
+      "from": "tbilisi",
+      "to": "batumi",
+      "max_km": 450,
+      "must_pass_near": [
+        {
+          "lat": 42.0199286,
+          "lon": 44.3096653,
+          "within_m": 75,
+          "note": "S1/E60 at its closest to the South Ossetia line (412 m, westbound way 632191448; eastbound way 102547290 is 428 m away and also within 75 m)"
+        }
+      ]
+    },
+    {
+      "id": "tbilisi-kutaisi",
+      "from": "tbilisi",
+      "to": "kutaisi",
+      "max_km": 300,
+      "must_pass_near": [
+        {
+          "lat": 42.0199286,
+          "lon": 44.3096653,
+          "within_m": 75,
+          "note": "S1/E60 at its closest to the South Ossetia line (412 m, westbound way 632191448; eastbound way 102547290 is 428 m away and also within 75 m)"
+        }
+      ]
+    },
+    {
+      "id": "tbilisi-telavi",
+      "from": "tbilisi",
+      "to": "telavi",
+      "max_km": 190
+    },
+    {
+      "id": "tbilisi-stepantsminda",
+      "from": "tbilisi",
+      "to": "stepantsminda",
+      "max_km": 200,
+      "note": "Georgian Military Road over the Jvari pass. On 2026-09-26 OSM had no seasonal or conditional tags within 20 km of the pass, so it must route in winter too. Its real winter closures come from the Roads Department feed, not from OSM."
+    },
+    {
+      "id": "zugdidi-mestia",
+      "from": "zugdidi",
+      "to": "mestia",
+      "max_km": 170
+    },
+    {
+      "id": "gori-khashuri",
+      "from": "gori",
+      "to": "khashuri",
+      "max_km": 70,
+      "note": "S1 west of Gori."
+    },
+    {
+      "id": "tbilisi-gori-s1-khurvaleti",
+      "from": "tbilisi",
+      "to": "gori",
+      "max_km": 110,
+      "must_pass_near": [
+        {
+          "lat": 42.0199286,
+          "lon": 44.3096653,
+          "within_m": 75,
+          "note": "S1/E60 at its closest to the South Ossetia line (412 m, westbound way 632191448; eastbound way 102547290 is 428 m away and also within 75 m)"
+        }
+      ],
+      "note": "Proves the clip did not cut S1 where it runs 412 m from the line near Khurvaleti."
+    },
+    {
+      "id": "gori-tbilisi-s1-khurvaleti",
+      "from": "gori",
+      "to": "tbilisi",
+      "max_km": 110,
+      "must_pass_near": [
+        {
+          "lat": 42.0199286,
+          "lon": 44.3096653,
+          "within_m": 75,
+          "note": "S1/E60 at its closest to the South Ossetia line (412 m, westbound way 632191448; eastbound way 102547290 is 428 m away and also within 75 m)"
+        }
+      ]
+    },
+    {
+      "id": "batumi-sarpi",
+      "from": "batumi",
+      "to": "sarpi",
+      "max_km": 30,
+      "note": "The outside-Georgia clip must leave the approach to the Turkish border crossing."
+    }
+  ],
+  "must_fail": [
+    {
+      "id": "gori-tskhinvali",
+      "from": "gori",
+      "to": "tskhinvali",
+      "control": {
+        "lat": 42.20326,
+        "lon": 43.9901206,
+        "name": "Ergneti approach, 608 m from the line",
+        "source": "vertex of OSM way 103260592; 30.4 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "tbilisi-akhalgori",
+      "from": "tbilisi",
+      "to": "akhalgori",
+      "control": {
+        "lat": 42.0518681,
+        "lon": 44.4954151,
+        "name": "Odzisi approach to the Mosabruni crossing, 617 m from the line",
+        "source": "vertex of OSM way 104276620; 58.1 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "zugdidi-gali",
+      "from": "zugdidi",
+      "to": "gali",
+      "control": {
+        "lat": 42.578961,
+        "lon": 41.8597351,
+        "name": "Rukhi, the trunk road to the Enguri bridge, 640 m from the line",
+        "source": "vertex of OSM way 102623849; 10.0 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "sachkhere-java",
+      "from": "sachkhere",
+      "to": "java",
+      "control": {
+        "lat": 42.3519152,
+        "lon": 43.5882076,
+        "name": "road to the Perevi crossing, 606 m from the Perevi no-go polygon",
+        "source": "vertex of OSM way 275521212; 17.2 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "tsalenjikha-tkvarcheli",
+      "from": "tsalenjikha",
+      "to": "tkvarcheli",
+      "control": {
+        "lat": 42.6491854,
+        "lon": 41.9515561,
+        "name": "Pakhulani, the road to the Saberio crossing, 604 m from the line",
+        "source": "vertex of OSM way 85504329; 15.5 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "kutaisi-sukhumi",
+      "from": "kutaisi",
+      "to": "sukhumi",
+      "control": {
+        "lat": 42.578961,
+        "lon": 41.8597351,
+        "name": "Rukhi, the trunk road to the Enguri bridge, 640 m from the line",
+        "source": "vertex of OSM way 102623849; 122.8 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "sachkhere-perevi-ge",
+      "from": "sachkhere",
+      "to": "perevi_ge",
+      "note": "Perevi is covered by the law even where OSM draws it outside the line.",
+      "control": {
+        "lat": 42.3519152,
+        "lon": 43.5882076,
+        "name": "road to Perevi, 606 m from the Perevi no-go polygon",
+        "source": "vertex of OSM way 275521212; 17.2 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "sachkhere-perevi-so",
+      "from": "sachkhere",
+      "to": "perevi_so",
+      "control": {
+        "lat": 42.3519152,
+        "lon": 43.5882076,
+        "name": "road to Perevi, 606 m from the Perevi no-go polygon",
+        "source": "vertex of OSM way 275521212; 17.2 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "stub-1152361381",
+      "from": "dusheti",
+      "to": {
+        "lat": 42.0611463,
+        "lon": 44.4954612,
+        "name": "Odzisi/Akhmaji road into South Ossetia (research: driven 341 m inside)"
+      },
+      "source": "point on OSM way 1152361381 (v1, highway=unclassified) deepest inside the occupied polygon, 250.0 m inside",
+      "control": {
+        "lat": 42.0518681,
+        "lon": 44.4954151,
+        "name": "Odzisi, 617 m from the line",
+        "source": "vertex of OSM way 104276620; 27.4 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "stub-102543336",
+      "from": "gori",
+      "to": {
+        "lat": 42.1407793,
+        "lon": 44.1431454,
+        "name": "Kveshi/Artsevi (driven 330 m inside)"
+      },
+      "source": "point on OSM way 102543336 (v3, highway=residential) deepest inside the occupied polygon, 13.5 m inside",
+      "control": {
+        "lat": 42.1427798,
+        "lon": 44.1354459,
+        "name": "Kveshi approach, 608 m from the line",
+        "source": "vertex of OSM way 102543422; 20.8 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "stub-275798268",
+      "from": "dusheti",
+      "to": {
+        "lat": 42.0664645,
+        "lon": 44.5536917,
+        "name": "Karkushaani (driven 157 m inside)"
+      },
+      "source": "point on OSM way 275798268 (v1, highway=residential) deepest inside the occupied polygon, 58.7 m inside",
+      "control": {
+        "lat": 42.0731184,
+        "lon": 44.5572393,
+        "name": "Karkushaani approach, 601 m from the line",
+        "source": "vertex of OSM way 104283485; 21.1 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "stub-843399707",
+      "from": "gori",
+      "to": {
+        "lat": 42.2254797,
+        "lon": 44.0929655,
+        "name": "Gugutiantkari/Koshka (driven 59 m inside; fence since 2019)"
+      },
+      "source": "point on OSM way 843399707 (v4, highway=residential) deepest inside the occupied polygon, 6.5 m inside",
+      "control": {
+        "lat": 42.2211353,
+        "lon": 44.0884332,
+        "name": "Gugutiantkari approach, 600 m from the line",
+        "source": "vertex of OSM way 1382734658; 30.3 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "stub-121211765",
+      "from": "kareli",
+      "to": {
+        "lat": 42.1610429,
+        "lon": 43.884664,
+        "name": "Dvani/Muguti, access=unknown (driven 36 m inside)"
+      },
+      "source": "point on OSM way 121211765 (v4, highway=unclassified) deepest inside the occupied polygon, 52.3 m inside",
+      "control": {
+        "lat": 42.155135,
+        "lon": 43.8829684,
+        "name": "Dvani approach, 605 m from the line",
+        "source": "vertex of OSM way 102191621; 17.7 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "stub-275521191",
+      "from": "sachkhere",
+      "to": {
+        "lat": 42.3595026,
+        "lon": 43.5969447,
+        "name": "Perevi bridge (driven 34 m inside)"
+      },
+      "source": "point on OSM way 275521191 (v3, highway=residential) deepest inside the occupied polygon, 30.5 m inside",
+      "control": {
+        "lat": 42.3519152,
+        "lon": 43.5882076,
+        "name": "road to the Perevi bridge, 606 m from the Perevi no-go polygon",
+        "source": "vertex of OSM way 275521212; 17.2 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "stub-1148503076",
+      "from": "khashuri",
+      "to": {
+        "lat": 42.1409185,
+        "lon": 43.6918644,
+        "name": "Tsnelisi/Chorchana (driven 17 m inside)"
+      },
+      "source": "point on OSM way 1148503076 (v2, highway=unclassified) deepest inside the occupied polygon, 11.2 m inside",
+      "control": {
+        "lat": 42.135846,
+        "lon": 43.6862053,
+        "name": "Tsnelisi approach on the same way, 699 m from the line",
+        "source": "vertex of OSM way 1148503076; 32.7 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "stub-102543264",
+      "from": "gori",
+      "to": {
+        "lat": 42.1763505,
+        "lon": 44.1095992,
+        "name": "Plavi/Kvemo Otrevi (driven 14 m inside)"
+      },
+      "source": "point on OSM way 102543264 (v2, highway=residential) deepest inside the occupied polygon, 1.7 m inside",
+      "control": {
+        "lat": 42.1715746,
+        "lon": 44.1029141,
+        "name": "Plavi approach, 764 m from the line",
+        "source": "vertex of OSM way 102543431; 25.4 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "stub-101987676",
+      "from": "kareli",
+      "to": {
+        "lat": 42.1589234,
+        "lon": 43.7237327,
+        "name": "Chvrinisi (driven 10 m inside)"
+      },
+      "source": "point on OSM way 101987676 (v3, highway=residential) deepest inside the occupied polygon, 0.3 m inside",
+      "control": {
+        "lat": 42.1538829,
+        "lon": 43.7339299,
+        "name": "Chvrinisi approach, 718 m from the line",
+        "source": "vertex of OSM way 101987800; 27.6 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "stub-83017315",
+      "from": "anaklia",
+      "to": {
+        "lat": 42.4188512,
+        "lon": 41.5738967,
+        "name": "Anaklia/Ganmukhuri into Abkhazia (driven 219 m inside)"
+      },
+      "source": "point on OSM way 83017315 (v1, highway=unclassified) deepest inside the occupied polygon, 6.8 m inside",
+      "control": {
+        "lat": 42.4103686,
+        "lon": 41.5742446,
+        "name": "Anaklia, Zviad Gamsakhurdia Street, 641 m from the line",
+        "source": "vertex of OSM way 169139721; 2.8 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "stub-1152361375",
+      "from": "tbilisi",
+      "to": {
+        "lat": 42.0684575,
+        "lon": 44.4871091,
+        "name": "Odzisi-Mosabruni official crossing, access=permit"
+      },
+      "source": "point on OSM way 1152361375 (v3, highway=unclassified) deepest inside the occupied polygon, 7.8 m inside",
+      "control": {
+        "lat": 42.0518681,
+        "lon": 44.4954151,
+        "name": "Odzisi approach to the Mosabruni crossing, 617 m from the line",
+        "source": "vertex of OSM way 104276620; 58.1 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "stub-105119845",
+      "from": "kareli",
+      "to": {
+        "lat": 42.172469,
+        "lon": 43.8736809,
+        "name": "Chorbauli/Dvani"
+      },
+      "source": "point on OSM way 105119845 (v2, highway=residential) deepest inside the occupied polygon, 256.9 m inside",
+      "control": {
+        "lat": 42.155135,
+        "lon": 43.8829684,
+        "name": "Dvani approach, 605 m from the line",
+        "source": "vertex of OSM way 102191621; 17.7 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "stub-436659015",
+      "from": "gori",
+      "to": {
+        "lat": 42.2109233,
+        "lon": 43.986097,
+        "name": "near Ergneti"
+      },
+      "source": "point on OSM way 436659015 (v2, highway=unclassified) deepest inside the occupied polygon, 223.2 m inside",
+      "control": {
+        "lat": 42.20326,
+        "lon": 43.9901206,
+        "name": "Ergneti approach, 608 m from the line",
+        "source": "vertex of OSM way 103260592; 30.4 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "stub-198300197",
+      "from": "dusheti",
+      "to": {
+        "lat": 42.1091958,
+        "lon": 44.5269997,
+        "name": "Burghuli/Dzeglevi (5.3 km inside, crosses 4 times)"
+      },
+      "source": "point on OSM way 198300197 (v5, highway=unclassified) deepest inside the occupied polygon, 1025.4 m inside",
+      "control": {
+        "lat": 42.0815265,
+        "lon": 44.531164,
+        "name": "Burghuli approach, 714 m from the line",
+        "source": "vertex of OSM way 104283749; 19.9 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "stub-82739294",
+      "from": "zugdidi",
+      "to": {
+        "lat": 42.582757,
+        "lon": 41.8505614,
+        "name": "Enguri bridge, access=no"
+      },
+      "source": "point on OSM way 82739294 (v15, highway=trunk) deepest inside the occupied polygon, 65.0 m inside",
+      "control": {
+        "lat": 42.578961,
+        "lon": 41.8597351,
+        "name": "Rukhi, the trunk road to the Enguri bridge, 640 m from the line",
+        "source": "vertex of OSM way 102623849; 10.0 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "stub-207602449",
+      "from": "zugdidi",
+      "to": {
+        "lat": 43.3939533,
+        "lon": 40.009131,
+        "name": "Psou bridge (Russia to Abkhazia), outside Georgia proper"
+      },
+      "source": "point on OSM way 207602449 (v10, highway=trunk) deepest inside the occupied polygon, 49.2 m inside",
+      "control": {
+        "lat": 42.578961,
+        "lon": 41.8597351,
+        "name": "Rukhi, the trunk road to the Enguri bridge (the only Georgian approach toward the Psou), 640 m from the line",
+        "source": "vertex of OSM way 102623849; 10.0 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "stepantsminda-upper-lars",
+      "from": "stepantsminda",
+      "to": "upper_lars_ru",
+      "note": "Upper Lars: the A-161 past the border must be gone (outside-Georgia clip).",
+      "control": {
+        "lat": 42.7405693,
+        "lon": 44.627014,
+        "name": "Georgian Military Road below the Upper Lars crossing, 623 m from the border",
+        "source": "vertex of OSM way 471674839; 11.2 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "oni-mamison-russia",
+      "from": "oni",
+      "to": "mamison_ru",
+      "note": "Mamison: the Russian side of the Ossetian Military Road.",
+      "control": {
+        "lat": 42.6849138,
+        "lon": 43.7047471,
+        "name": "Kutaisi-Alpana-Mamison road, 606 m from the South Ossetia line",
+        "source": "vertex of OSM way 1148551345; 31.3 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "tbilisi-sadakhlo-armenia",
+      "from": "tbilisi",
+      "to": "sadakhlo_am",
+      "note": "Sadakhlo-Bagratashen: the Armenian side must be gone.",
+      "control": {
+        "lat": 41.2358778,
+        "lon": 44.8075698,
+        "name": "Marneuli-Sadakhlo trunk road, 617 m from the border",
+        "source": "vertex of OSM way 907460076; 69.8 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "tbilisi-red-bridge-azerbaijan",
+      "from": "tbilisi",
+      "to": "red_bridge_az",
+      "note": "Red Bridge: the Azerbaijani side must be gone.",
+      "control": {
+        "lat": 41.3333928,
+        "lon": 45.0580484,
+        "name": "road to the Red Bridge crossing, 633 m from the border",
+        "source": "vertex of OSM way 101880726; 59.0 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "batumi-sarpi-turkey",
+      "from": "batumi",
+      "to": "sarpi_tr",
+      "note": "Sarpi: the Turkish side must be gone.",
+      "control": {
+        "lat": 41.5263276,
+        "lon": 41.5489067,
+        "name": "Senaki-Poti-Sarpi trunk road, 631 m from the border",
+        "source": "vertex of OSM way 632435486; 19.5 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "stub-84484871",
+      "from": "tsalenjikha",
+      "to": {
+        "lat": 42.6801391,
+        "lon": 41.8650074,
+        "name": "Ochake-Chegali road, 5.6 km inside Abkhazia (no access tag)"
+      },
+      "source": "point on OSM way 84484871 (highway=unclassified, no access tag) deepest inside the occupied polygon, 5640.5 m inside",
+      "note": "The road grazes the line near 42.7513,41.9055 (48 m outside) and no Georgian road reaches it, so the control only proves that Tsalenjikha routes.",
+      "control": {
+        "lat": 42.6491854,
+        "lon": 41.9515561,
+        "name": "Pakhulani, the road to the Saberio crossing, 604 m from the line",
+        "source": "vertex of OSM way 85504329; 15.5 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "stub-250174327",
+      "from": "tsalenjikha",
+      "to": {
+        "lat": 42.6457388,
+        "lon": 41.9454509,
+        "name": "Saberio-Pakhulani crossing (access=no)"
+      },
+      "source": "point on OSM way 250174327 (highway=unclassified, access=no) deepest inside the occupied polygon, 24.3 m inside",
+      "note": "Official crossing named in 2023; the Georgian-side ways 258953318 and 195988784 run 13 to 191 m from the line.",
+      "control": {
+        "lat": 42.6491854,
+        "lon": 41.9515561,
+        "name": "Pakhulani, the road to the Saberio crossing, 604 m from the line",
+        "source": "vertex of OSM way 85504329; 15.5 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "stub-399898439",
+      "from": "oni",
+      "to": {
+        "lat": 42.6807926,
+        "lon": 43.720229,
+        "name": "Mamison road, Racha side, where it dips into South Ossetia (access=no)"
+      },
+      "source": "point on OSM way 399898439 (highway=unclassified, access=no) deepest inside the occupied polygon, 195.0 m inside",
+      "note": "Racha-side end of the Mamison road (ways 399898438 and 399898439).",
+      "control": {
+        "lat": 42.6849138,
+        "lon": 43.7047471,
+        "name": "Kutaisi-Alpana-Mamison road, 606 m from the South Ossetia line",
+        "source": "vertex of OSM way 1148551345; 31.3 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "mestia-azhara",
+      "from": "mestia",
+      "to": "azhara_road",
+      "note": "Svaneti into Kodori: prohibited direction.",
+      "control": {
+        "lat": 43.0678625,
+        "lon": 42.0582044,
+        "name": "Khaishi-Sakeni-Omarishara road, 611 m from the Abkhazia line",
+        "source": "vertex of OSM way 200165647; 87.0 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "mestia-chkhalta",
+      "from": "mestia",
+      "to": "chkhalta_road",
+      "note": "Svaneti into Kodori: prohibited direction.",
+      "control": {
+        "lat": 43.0678625,
+        "lon": 42.0582044,
+        "name": "Khaishi-Sakeni-Omarishara road, 611 m from the Abkhazia line",
+        "source": "vertex of OSM way 200165647; 87.0 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    },
+    {
+      "id": "stub-480352813",
+      "from": "mestia",
+      "to": {
+        "lat": 43.0701752,
+        "lon": 42.0231544,
+        "name": "Khaishi-Sakeni-Omarishara road inside Kodori"
+      },
+      "source": "point on OSM way 480352813 (highway=tertiary, no access tag) deepest inside the occupied polygon, 1880.4 m inside",
+      "note": "The Svaneti road into Kodori: Georgian way 81296983 ends 7 m from the line, then access=no ways 1472065996 and 1472065997, then this way.",
+      "control": {
+        "lat": 43.0678625,
+        "lon": 42.0582044,
+        "name": "Khaishi-Sakeni-Omarishara road, 611 m from the Abkhazia line",
+        "source": "vertex of OSM way 200165647; 87.0 km from the origin on FOSSGIS Valhalla, 2026-09-26"
+      }
+    }
+  ],
+  "band_checks_note": "Points in the 100-500 m band on ways that used to stay free. /locate must find only destination-only edges there. If OSM moves or deletes one of these ways the check fails: pick a new point on the same road.",
+  "band_checks": [
+    {
+      "id": "band-83017315",
+      "lat": 42.412299,
+      "lon": 41.5701032,
+      "name": "the kept piece of the Anaklia/Ganmukhuri stub 83017315",
+      "source": "point on OSM way 83017315 (unclassified), 300 m from the occupied line, 27 m from the nearest vertex"
+    },
+    {
+      "id": "band-102543323",
+      "lat": 42.1605876,
+      "lon": 44.1261684,
+      "name": "tertiary way 102543323 north of Gori, kept whole before the fix (2,567 m of it in the band, 100 m from the line at its closest)",
+      "source": "point on OSM way 102543323 (tertiary), 300 m from the occupied line, 72 m from the nearest vertex"
+    },
+    {
+      "id": "band-102596302",
+      "lat": 42.5114719,
+      "lon": 41.7407452,
+      "name": "unclassified way 102596302 on the Enguri line (2,061 m in the band, closest 152 m)",
+      "source": "point on OSM way 102596302 (unclassified), 300 m from the occupied line, 59 m from the nearest vertex"
+    },
+    {
+      "id": "band-121424878",
+      "lat": 42.2017756,
+      "lon": 43.9847879,
+      "name": "unclassified way 121424878 near Ergneti (closest 122 m); the loose snap for Tskhinvali lands here",
+      "source": "point on OSM way 121424878 (unclassified), 300 m from the occupied line, 16 m from the nearest vertex"
+    },
+    {
+      "id": "band-194019085",
+      "lat": 42.0393472,
+      "lon": 44.4887803,
+      "name": "secondary way 194019085, Igoeti-Akhmaji (the only secondary road in the band on 2026-09-26)",
+      "source": "point on OSM way 194019085 (secondary), 300 m from the occupied line, 47 m from the nearest vertex"
+    },
+    {
+      "id": "band-195988784",
+      "lat": 42.6658974,
+      "lon": 41.9405397,
+      "name": "Pakhulani-Kalaghali way 195988784 at Tsalenjikha (closest 13 m)",
+      "source": "point on OSM way 195988784 (unclassified), 297 m from the occupied line, 15 m from the nearest vertex"
+    },
+    {
+      "id": "band-258953318",
+      "lat": 42.6607455,
+      "lon": 41.9435122,
+      "name": "Pakhulani-Kalaghali way 258953318 at Tsalenjikha (closest 191 m)",
+      "source": "point on OSM way 258953318 (unclassified), 253 m from the occupied line, 15 m from the nearest vertex"
+    }
+  ],
+  "seasonal": [
+    {
+      "id": "sh44-tusheti",
+      "from": "pshaveli",
+      "to": "omalo",
+      "closed_date": "2026-12-15T10:00",
+      "open_date": "2026-07-15T10:00",
+      "road": {
+        "lat": 42.2051429,
+        "lon": 45.4622463,
+        "within_m": 100,
+        "note": "Sh44 way 28089103 (access:conditional=no @ (Nov-Jun), 4wd_only=yes)"
+      },
+      "note": "Sh44 Pshaveli-Abano-Omalo is the only road into Tusheti and carries access:conditional=no @ (Nov-Jun) and no @ (Nov-Apr). In December a route must not use it (so Omalo is unreachable); in July the same request must succeed and pass over it, which proves the road is in the graph."
+    }
+  ],
+  "inside_no_go": [
+    {
+      "name": "Kurta (named in the law)",
+      "lat": 42.1859665,
+      "lon": 44.471663,
+      "source": "OSM place node 1796703443"
+    },
+    {
+      "name": "Eredvi (named in the law)",
+      "lat": 42.2468424,
+      "lon": 44.0395224,
+      "source": "OSM way 1137805876 (place=locality), centre from Nominatim"
+    },
+    {
+      "name": "Azhara, upper Kodori (named in the law)",
+      "lat": 43.1045628,
+      "lon": 41.7145061,
+      "source": "OSM place node 2072380962"
+    },
+    {
+      "name": "Akhalgori (named in the law)",
+      "lat": 42.1218994,
+      "lon": 44.4851837,
+      "source": "OSM place node 387180719"
+    },
+    {
+      "name": "Perevi, Georgian-controlled part (named in the law)",
+      "lat": 42.3669438,
+      "lon": 43.5998,
+      "source": "OSM place node 539511299"
+    },
+    {
+      "name": "Perevi, occupied part",
+      "lat": 42.3571089,
+      "lon": 43.5973871,
+      "source": "OSM place node 10856142974"
+    },
+    {
+      "name": "Perevi, built-up patch 1 of relation 15344012 (0.66 km2)",
+      "lat": 42.3709649,
+      "lon": 43.5998695,
+      "source": "representative point of that patch in the frozen source copy config/boundaries/sources/perevi_15344012.geojson"
+    },
+    {
+      "name": "Perevi, built-up patch 2 of relation 15344012 (0.13 km2)",
+      "lat": 42.3712414,
+      "lon": 43.5933613,
+      "source": "representative point of that patch in the frozen source copy config/boundaries/sources/perevi_15344012.geojson"
+    },
+    {
+      "name": "Perevi, built-up patch 3 of relation 15344012 (0.01 km2)",
+      "lat": 42.3619674,
+      "lon": 43.5991993,
+      "source": "representative point of that patch in the frozen source copy config/boundaries/sources/perevi_15344012.geojson"
+    },
+    {
+      "name": "Perevi, built-up patch 4 of relation 15344012 (0.06 km2)",
+      "lat": 42.3592654,
+      "lon": 43.5942001,
+      "source": "representative point of that patch in the frozen source copy config/boundaries/sources/perevi_15344012.geojson"
+    }
+  ]
+}

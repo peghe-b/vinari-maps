@@ -1,0 +1,8 @@
+# Build output (the workflow writes everything here)
+build/
+.venv/
+__pycache__/
+*.pyc
+*.osm.pbf
+*.osm
+.DS_Store
