@@ -271,6 +271,32 @@ contract, which the gate tests with the settings in
    `places.occupied_without_name_ka`, an owner decision). A
    `barrier=border_control` near the occupation line is kind
    `line_checkpoint`, never a border crossing.
+   Two ranking rules the app must copy exactly (config/geocoder.json
+   `ranking.exact_first` and `ranking.other_settlement_penalty`, with
+   their `_note`s):
+   a place or named feature whose name is exactly the whole query comes
+   before the streets and POIs that only carry that name, and before every
+   row found by reading a word as a settlement ("თბილისის ზღვა" is the
+   reservoir, not "ზღვა" in Tbilisi). Only carrying the name means: a
+   street named after a settlement or feature and nothing else
+   ("ერედვის ქუჩა"), a route that lists it ("სენაკი — ფოთი — სარფი"), a
+   street or POI within 10 km of it, any street or POI for a city or town.
+   A district (suburb, quarter, neighbourhood) holds nothing by name alone,
+   so Batumi's "შოთა რუსთაველის ქუჩა" is not held below Rustavi's
+   "შოთა რუსთაველის დასახლება"; a POI that only shares a far place's name
+   (hotel "ალმა" in Tbilisi, hamlet ალმა far away) keeps its rank. An
+   occupied place holds rows too, so its bare name explains first, except
+   that with a position it holds rows near the user (inside the local
+   search box) only as a route that lists it or a neighbour within 10 km:
+   "თავისუფლება" in Tbilisi is Freedom Square, without a position the
+   occupied village. And when the app has no position and the query names
+   no settlement, streets and addresses that do not fit like the best rows
+   of the most important settlement among the best-fitting rows rank lower:
+   the best fit is an exact house number before one that holds it among
+   others ("20-22") before one it only begins ("49ა"), a current name
+   before an old_name, then the text score. So "ჭავჭავაძის 37" is
+   Tbilisi's when Tbilisi has a 37, but Batumi's exact 49 beats Tbilisi's
+   49ა, and a street with Lermontov's name now beats one that had it.
 
 When the app's request changes, change `app_request` in the same release.
 
@@ -418,7 +444,19 @@ failed; the workflow fails on any skip.
   without repository activity; re-enable the workflow if that happens.
 - The geocoder's ranking was tuned on a local build over a sample of the
   2026-09-25/26 data, not on the whole country; the known queries of
-  `config/geocoder_gate.json` are what holds it in place.
+  `config/geocoder_gate.json` are what holds it in place. The first full
+  run failed five of them (a village, a resort village and an occupied
+  place losing to roads that carry their names, a reservoir losing to a
+  street found through "Tbilisi", an address in Kutaisi before Tbilisi's);
+  config v3 fixed them with general rules, checked on the sample plus the
+  real OSM objects behind those five, and swept old against new over every
+  street, POI and place name of the sample, with and without a position,
+  and 1500 house numbers. Against the released rules, the remaining
+  changes are intended: without a position the capital's street of the
+  same name comes first (15 street names in the Batumi-heavy sample), a
+  POI next to a hamlet or locality of its own name comes right after it,
+  and a hotel named after a town ("ყაზბეგი" in Batumi) comes after the
+  town.
 - Owner decisions still open: what search shows for the occupied places
   that have no name:ka (hidden until decided;
   `places.occupied_without_name_ka` in `config/geocoder.json`), and whether

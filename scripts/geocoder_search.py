@@ -27,7 +27,28 @@ searches with the rules it was built with.
      times how much of the name the query covered), importance, nearness to
      the user, and for streets and addresses the road class; see
      config/geocoder.json 'ranking'.
-  5. When nothing matches every word, the search runs once more without the
+  5. Exact name first: a place or named feature (water, pass, ski area,
+     resort, border crossing ...) whose name is exactly the whole query
+     ranks above the streets and POIs that only carry that name and above
+     every row of the reading that takes a word as a settlement: 'sarpi'
+     is the village, not the Senaki — Poti — Sarpi motorway; 'თბილისის
+     ზღვა' is the reservoir, not 'ზღვა' in Tbilisi. Only carrying the name
+     means: a street named after a settlement or feature and nothing else,
+     a route that lists it, a street or POI near it, any street or POI for
+     a city or town. A district holds nothing by name alone (Rustavi's
+     'შოთა რუსთაველის დასახლება' and Batumi's Rustaveli street), a street
+     with a given name besides the surname keeps its rank against a far
+     village of that surname, and so does a POI that only shares a far
+     place's name (hotel 'ალმა'). With a position, an occupied place holds
+     rows near the user only as a route or a neighbour. See
+     ranking.exact_first in config/geocoder.json.
+  6. No position and no settlement in the query: streets, and separately
+     addresses, that do not fit like the best rows of the most important
+     settlement among the best-fitting rows lose
+     ranking.other_settlement_penalty (see _other_settlement_note). So
+     'ჭავჭავაძის 37' is Tbilisi's when Tbilisi has a 37; when only Batumi
+     has an exact 37 (Tbilisi a '37ა' or '20-37'), Batumi's comes first.
+  7. When nothing matches every word, the search runs once more without the
      rarest word, and marks those results partial.
 
 Occupied places: a place inside no_go_hard is returned with occupied=1,
@@ -46,6 +67,7 @@ import argparse
 import itertools
 import json
 import math
+import re
 import sqlite3
 import sys
 from pathlib import Path
@@ -60,10 +82,19 @@ DISTRICT_KINDS = ("suburb", "quarter", "neighbourhood")
 ANCHOR_KINDS = SETTLEMENT_KINDS + DISTRICT_KINDS
 SPECIFIC_FIRST = ("neighbourhood", "quarter", "suburb", "hamlet", "village", "town", "city")
 REASONS = {"occupied": "occupied", "buffer": "occupation_line"}
+# A database built before a rule existed searches without it (exact_first
+# None, other_settlement_penalty 0): it always searches with its own rules.
 RANKING_DEFAULTS = {"occupied_factor": 1.0, "street_class_prior": {}, "lane_words": [], "lane_factor": 1.0,
                     "initial_bonus": 0.0, "type_word_missing": 1.0, "type_word_conflict": 1.0,
                     "anchor_street_min_text": 0.9, "anchor_same_place_km": 10.0, "city_reach_factor": 1.5,
-                    "city_reach_min_km": 3.0}
+                    "city_reach_min_km": 3.0, "exact_first": None, "other_settlement_penalty": 0.0,
+                    "other_settlement_margin": 0.0}
+MAIN_NAMES = ("name", "name_ka", "name_en", "name_ru")
+# Route names list the places a road links: 'სენაკი — ფოთი — სარფი',
+# 'ტირძნისი-დიცი-ერედვი-ხეითი' (hyphen, hyphen, non-breaking hyphen, en and
+# em dash, horizontal bar; spaces around them or not).
+ROUTE_DASHES = re.compile("\\s*[-\u2010\u2011\u2013\u2014\u2015]\\s*")
+KM_PER_DEG = math.pi * 6371.0088 / 180.0
 
 
 def distance_km(lat1, lon1, lat2, lon2):
@@ -71,6 +102,36 @@ def distance_km(lat1, lon1, lat2, lon2):
     a = (math.sin((p2 - p1) / 2) ** 2
          + math.cos(p1) * math.cos(p2) * math.sin(math.radians(lon2 - lon1) / 2) ** 2)
     return 2 * 6371.0088 * math.asin(min(1.0, math.sqrt(a)))
+
+
+def box_distance_km(lat, lon, min_lat, min_lon, max_lat, max_lon):
+    """From a point to a box (0 inside it)."""
+    dy = max(min_lat - lat, 0.0, lat - max_lat) * KM_PER_DEG
+    dx = max(min_lon - lon, 0.0, lon - max_lon) * KM_PER_DEG * math.cos(math.radians(lat))
+    return math.hypot(dx, dy)
+
+
+class Candidate:
+    """One row that matched one reading of the query, until it is scored."""
+
+    __slots__ = ("table", "row", "numbers", "split", "bonus", "text", "via",
+                 "score", "text_final", "street_row", "held", "holders", "named", "fitness")
+
+    def __init__(self, table, row, numbers, split, bonus, text, via):
+        self.table = table
+        self.row = row
+        self.numbers = numbers      # house numbers of the query
+        self.split = split          # found by a reading that took words as a settlement
+        self.bonus = bonus          # city_bonus when it lies in that settlement
+        self.text = text            # text_match score
+        self.via = via              # the name text that scored it
+        self.score = None
+        self.text_final = None
+        self.street_row = None
+        self.held = None            # its own score when exact_first held it lower
+        self.holders = None         # holders(), once worked out
+        self.named = None           # named_after(), once worked out
+        self.fitness = None         # fit(), once worked out
 
 
 class Context:
@@ -183,7 +244,7 @@ class Searcher:
         return self.con.execute("SELECT * FROM streets WHERE id = ?", (street_id,)).fetchone()
 
     def name_texts(self, table, row):
-        texts = [row[c] for c in ("name", "name_ka", "name_en", "name_ru") if row[c]] if table != "addresses" else []
+        texts = [row[c] for c in MAIN_NAMES if row[c]] if table != "addresses" else []
         if table != "addresses" and row["alt_names"]:
             texts.extend(row["alt_names"].split("|"))
         if table == "pois" and row["brand"]:
@@ -192,12 +253,21 @@ class Searcher:
         if table == "addresses":
             s = self.street(row["street_id"])
             if s is not None:
-                texts.extend(s[c] for c in ("name", "name_ka", "name_en", "name_ru") if s[c])
+                texts.extend(s[c] for c in MAIN_NAMES if s[c])
                 if s["alt_names"]:
                     texts.extend(s["alt_names"].split("|"))
             if row["place"]:
                 texts.append(row["place"])
         return list(dict.fromkeys(texts))
+
+    def main_texts(self, table, row, street_row=None):
+        """The current names (not old_name, alt_name ... or a brand): the
+        name columns; for an address its street's, or addr:place."""
+        if table == "addresses":
+            s = street_row if street_row is not None else self.street(row["street_id"])
+            texts = {s[c] for c in MAIN_NAMES if s[c]} if s is not None else set()
+            return texts | ({row["place"]} if row["place"] else set())
+        return {row[c] for c in MAIN_NAMES if row[c]}
 
     def same_word(self, token, key):
         """A name word that is the token itself or its stem (no prefix)."""
@@ -216,20 +286,21 @@ class Searcher:
         return 0.0
 
     def text_match(self, table, row, tokens, ctx):
-        """(score, a name word was left over, the name is a lane) for the
-        best reading of the row's names; score 0 when a word is missing."""
+        """(score, a name word was left over, the name is a lane, the name
+        text) for the best reading of the row's names (the first name on a
+        tie); score 0 when a word is missing."""
         variants = []
         for text in self.name_texts(table, row):
-            variants.append(self.keys(text))
+            variants.append((self.keys(text), text))
             joined = self.compound(text)
             if joined:
-                variants.append(joined)
+                variants.append((joined, text))
         extra = self.keys(row["housenumber"]) if table == "addresses" else []
         if extra:
-            variants = [v + extra for v in variants] or [extra]
-        best = (0.0, False, False)
+            variants = [(v + extra, text) for v, text in variants] or [(extra, None)]
+        best = (0.0, False, False, None)
         r = self.rank
-        for keys in variants:
+        for keys, source in variants:
             if not keys:
                 continue
             total, covered = 0.0, set()
@@ -278,7 +349,7 @@ class Searcher:
             if lane:
                 value *= r["lane_factor"]
             if value > best[0]:
-                best = (value, left_over, lane)
+                best = (value, left_over, lane, source)
         return best
 
     def text_score(self, table, row, tokens, optional, last_raw, initials=()):
@@ -492,17 +563,52 @@ class Searcher:
                                          scale_km=self.near_km.get(row["kind"]))
                 add("pois", row, score, text, category=category)
 
-        # Names.
+        # Names: the reading that needs every word, and one per settlement
+        # the query names ('rustaveli batumi': 'rustaveli' in Batumi).
         interpretations = [(q.required, None)]
+        names_settlement = False
         for idx, hits in self.settlement_spans(q.required):
             rest = [t for i, t in enumerate(q.required) if i not in idx]
             legal = [r for r in hits if not r["occupied"]]
             if legal:
+                names_settlement = True
                 if rest:
                     interpretations.append((rest, legal))
             elif "places" in tables:
                 add_occupied(hits)           # 'rustaveli sokhumi': explain first
-        full_places = []   # places that match the whole query, word for word
+        cands = self.candidates(tables, interpretations, near, ctx)
+        exact = self.exact_rows(q, cands)
+        for c in cands:
+            self.fit_text(c, exact, q, near)
+        centre = self.centre(cands) if near is None and not names_settlement else {}
+        for c in cands:
+            self.score(c, near, centre)
+        if exact:
+            self.hold_below_exact(cands, exact, q, near)
+        for c in cands:
+            row, extra = c.row, {"_order": c.held if c.held is not None else c.score}
+            if c.table == "addresses":
+                street_row = c.street_row
+                extra["street"] = (street_row["name"] or street_row["name_en"]) if street_row is not None \
+                    else row["place"]
+                s_ka = (street_row["label_ka"] if street_row is not None and "label_ka" in street_row.keys()
+                        else None) or extra["street"] or ""
+                s_en = (street_row["label_en"] if street_row is not None and "label_en" in street_row.keys()
+                        else None) or s_ka
+                extra["label_ka"] = f"{s_ka} {row['housenumber']}".strip()
+                extra["label_en"] = f"{s_en} {row['housenumber']}".strip()
+            add(c.table, row, c.score, c.text_final, **extra)
+        out = sorted(found.values(), key=lambda r: (0 if r.get("anchor") else 1, -r["score"],
+                                                    -r.get("_order", r["score"]),
+                                                    TABLES.index(r["table"]), r["id"]))
+        for r in out:
+            r.pop("_order", None)
+        return out[:limit]
+
+    def candidates(self, tables, interpretations, near, ctx):
+        """Every row that matches a reading of the query, with its text score."""
+        cand = self.rank["candidates"]
+        out = []
         for table in tables:
             for tokens, cities in interpretations:
                 if table == "places" and cities:
@@ -542,44 +648,246 @@ class Searcher:
                         elif not any(distance_km(c["lat"], c["lon"], row["lat"], row["lon"]) <= self.city_reach_km(c)
                                      for c in cities):
                             continue   # elsewhere: only the reading with every word may offer it
-                    text, left_over, _ = self.text_match(table, row, use, ctx)
-                    if text <= 0:
-                        continue
-                    if table == "places" and text >= 0.999 and not left_over:
-                        full_places.append(row)
-                    street_row = self.street(row["street_id"]) if table == "addresses" else None
-                    if table == "addresses":
-                        text *= self.housenumber_fit(numbers, row["housenumber"])
-                    else:
-                        if (table == "streets" and full_places and not q.optional
-                                and (not left_over or any(p["kind"] in ("city", "town") for p in full_places))):
-                            text *= self.rank["street_named_like_place"]
-                        if numbers and not self.has_number(table, row, numbers):
-                            text *= self.rank["number_not_in_name"]
-                    scale = self.near_km.get(row["kind"]) if table == "pois" else None
-                    score = self.final_score(table, text, row["importance"], row["lat"], row["lon"],
-                                             near, bonus, scale)
-                    if table == "streets":
-                        score += self.class_prior.get(row["kind"], 0.0)
-                    elif table == "addresses" and street_row is not None:
-                        score += self.class_prior.get(street_row["kind"], 0.0)
-                    if table == "places" and row["occupied"]:
-                        score *= self.rank["occupied_factor"]
-                    if table == "addresses":
-                        extra = {"street": (street_row["name"] or street_row["name_en"]) if street_row is not None
-                                 else row["place"]}
-                        s_ka = (street_row["label_ka"] if street_row is not None and "label_ka" in street_row.keys()
-                                else None) or extra["street"] or ""
-                        s_en = (street_row["label_en"] if street_row is not None and "label_en" in street_row.keys()
-                                else None) or s_ka
-                        extra["label_ka"] = f"{s_ka} {row['housenumber']}".strip()
-                        extra["label_en"] = f"{s_en} {row['housenumber']}".strip()
-                        add(table, row, score, text, **extra)
-                    else:
-                        add(table, row, score, text)
-        out = sorted(found.values(), key=lambda r: (0 if r.get("anchor") else 1, -r["score"],
-                                                    TABLES.index(r["table"]), r["id"]))
-        return out[:limit]
+                    text, _, _, via = self.text_match(table, row, use, ctx)
+                    if text > 0:
+                        out.append(Candidate(table, row, numbers, cities is not None, bonus, text, via))
+        return out
+
+    def fit_text(self, c, exact, q, near):
+        """The text part of a candidate's score: its text match times the
+        house number's fit (addresses), street_named_like_place and
+        number_not_in_name."""
+        table, row, r = c.table, c.row, self.rank
+        text = c.text
+        if table == "addresses":
+            c.street_row = self.street(row["street_id"])
+            text *= self.housenumber_fit(c.numbers, row["housenumber"])
+        else:
+            if table == "streets" and exact and (self.named_after(c, q) or self.holders(c, exact, q, near)):
+                text *= r["street_named_like_place"]
+            if c.numbers and not self.has_number(table, row, c.numbers):
+                text *= r["number_not_in_name"]
+        c.text_final = text
+
+    def score(self, c, near, centre):
+        """The final score of one candidate (see ranking._note)."""
+        table, row, r = c.table, c.row, self.rank
+        scale = self.near_km.get(row["kind"]) if table == "pois" else None
+        score = self.final_score(table, c.text_final, row["importance"], row["lat"], row["lon"], near, c.bonus,
+                                 scale)
+        if table == "streets":
+            score += self.class_prior.get(row["kind"], 0.0)
+        elif table == "addresses" and c.street_row is not None:
+            score += self.class_prior.get(c.street_row["kind"], 0.0)
+        if table == "places" and row["occupied"]:
+            score *= r["occupied_factor"]
+        if table in centre and not self.fits_centre(c, *centre[table]):
+            score -= r["other_settlement_penalty"]
+        c.score = score
+
+    # -- exact name first ----------------------------------------------------
+
+    def words_are(self, keys, tokens, stem=False):
+        """The name's words (street-type and noise words aside) are exactly
+        the query's words, one to one, each as typed or its nominative; with
+        stem, also a form with the same stem ('ერედვის' for 'ერედვი'), never
+        a longer word the query only begins ('გალფი' is not 'გალი'), and
+        noise words count as words ('Георгия' folds to the noise 'georgia')."""
+        words = [k for k in keys if not self.fold.is_type_key(k) and (stem or not self.fold.is_noise_key(k))] \
+            or list(keys)
+        if len(words) != len(tokens):
+            return False
+        left = list(words)
+        for t in tokens:
+            for i, k in enumerate(left):
+                if k in t.keys or (stem and self.same_word(t, k)):
+                    del left[i]
+                    break
+            else:
+                return False
+        return True
+
+    def exact_words(self, keys, tokens):
+        return self.words_are(keys, tokens)
+
+    def named_as(self, table, row, tokens, stem=False, texts=None):
+        for text in texts or self.name_texts(table, row):
+            for keys in (self.keys(text), self.compound(text)):
+                if keys and self.words_are(keys, tokens, stem):
+                    return True
+        return False
+
+    def exact_name(self, table, row, tokens):
+        return self.named_as(table, row, tokens)
+
+    def exact_rows(self, q, cands):
+        """Places and named features that are the whole query (ranking.exact_first)."""
+        ef = self.rank["exact_first"]
+        if not ef:
+            return []
+        allowed = set(ef.get("type_groups", ()))
+        for t in q.optional:   # 'ბოდორნის გზატკეცილი' asks for the road
+            if not any(self.type_group.get(self.fold.stem(k)) in allowed for k in t.keys):
+                return []
+        features = set(ef["feature_kinds"])
+        return [c for c in cands if not c.split
+                and (c.table == "places" or (c.table == "pois" and c.row["kind"] in features))
+                and self.exact_name(c.table, c.row, q.required)]
+
+    def is_local(self, c, near):
+        """Inside the box around the user that the local search reads."""
+        if near is None:
+            return False
+        box = self.rank["candidates"]["local_box_deg"]
+        k = box / max(0.2, math.cos(math.radians(near[0])))
+        return abs(c.row["lat"] - near[0]) <= box and abs(c.row["lon"] - near[1]) <= k
+
+    def holders(self, c, exact, q, near):
+        """The exact rows that a street or POI only carries the name of
+        (ranking.exact_first): (a) a street named after an exact settlement
+        of near_kinds or an exact feature, and nothing else; (b) any street
+        or POI, for an exact city or town; (c) a route that lists the name;
+        (d) a street or POI within near_km of an exact settlement of
+        near_kinds or an exact feature. With a position, an occupied exact
+        place holds a row inside the local box only by (c) or (d)."""
+        if c.holders is None:
+            c.holders = self._holders(c, exact, q, near)
+        return c.holders
+
+    def _holders(self, c, exact, q, near):
+        ef = self.rank["exact_first"]
+        whole, near_kinds = set(ef["whole_kinds"]), set(ef["near_kinds"])
+        local = self.is_local(c, near)
+        route = None
+        out = []
+        for e in exact:
+            is_place = e.table == "places"
+            spare = is_place and e.row["occupied"] and local
+            anchor = not is_place or e.row["kind"] in near_kinds    # a settlement or a feature
+            if not spare:
+                if is_place and e.row["kind"] in whole:                                     # (b)
+                    out.append(e)
+                    continue
+                if anchor and self.named_after(c, q):                                        # (a)
+                    out.append(e)
+                    continue
+            if route is None:                                                                # (c)
+                route = self.is_route(c, q)
+            if route:
+                out.append(e)
+                continue
+            if anchor:                                                                       # (d)
+                lat, lon = e.row["lat"], e.row["lon"]
+                if c.table == "streets":
+                    km = box_distance_km(lat, lon, c.row["min_lat"], c.row["min_lon"], c.row["max_lat"],
+                                         c.row["max_lon"])
+                else:
+                    km = distance_km(lat, lon, c.row["lat"], c.row["lon"])
+                if km <= ef["near_km"]:
+                    out.append(e)
+        return out
+
+    def named_after(self, c, q):
+        """A street (of the reading that needs every word) whose matched
+        name is the query's words and nothing else, each the word or its
+        stem ('ერედვის ქუჩა' for 'ერედვი')."""
+        if c.named is None:
+            c.named = (c.table == "streets" and not c.split and c.via is not None
+                       and self.named_as(c.table, c.row, q.required, stem=True, texts=[c.via]))
+        return c.named
+
+    def is_route(self, c, q):
+        for text in self.name_texts(c.table, c.row):
+            parts = [p for p in ROUTE_DASHES.split(text) if p.strip()]
+            if len(parts) >= 2 and any(self.exact_words(self.keys(p), q.required) for p in parts):
+                return True
+        return False
+
+    def hold_below_exact(self, cands, exact, q, near):
+        """Streets and POIs that only carry an exact row's name, and rows of
+        a settlement reading, score at most the best of the exact rows that
+        hold them minus margin. With a position, an occupied exact place
+        holds no settlement-reading row inside the local box."""
+        ef = self.rank["exact_first"]
+        chosen = {id(e) for e in exact}
+        for c in cands:
+            if id(c) in chosen:
+                continue
+            if c.split:
+                local = self.is_local(c, near)
+                hold = [e for e in exact if not (local and e.table == "places" and e.row["occupied"])]
+            elif c.table in ("streets", "pois"):
+                hold = self.holders(c, exact, q, near)
+            else:
+                continue
+            if hold:
+                cap = max(e.score for e in hold) - ef["margin"]
+                if c.score > cap:
+                    c.held, c.score = c.score, cap
+
+    # -- no position, no settlement --------------------------------------------
+
+    def fit(self, c):
+        """How well a street or address fits the query, for the centre:
+        ((number tier, current name), text). Number tier (addresses): 2 when
+        the house number is the query's number and nothing else, 1 when it
+        holds it among others ('20-22', '166 კორპ. 8' for 22, 8), 0 when it
+        only begins with it ('49ა') or lacks it. Current name: 1 when the
+        best reading is a current name, not old_name, alt_name ..."""
+        if c.fitness is None:
+            c.fitness = self._fit(c)
+        return c.fitness
+
+    def _fit(self, c):
+        tier = 0
+        if c.table == "addresses":
+            hn = [k for k in self.keys(c.row["housenumber"]) if not self.fold.is_noise_key(k)]
+            left = list(c.numbers)
+            for k in hn:
+                t = next((t for t in left if k in t.keys), None)
+                if t is None:
+                    break
+                left.remove(t)
+            else:
+                tier = 2 if hn else 0
+            if not tier and self.housenumber_fit(c.numbers, c.row["housenumber"]) >= 1.0:
+                tier = 1
+        main = 1 if c.via is not None and c.via in self.main_texts(c.table, c.row, c.street_row) else 0
+        return (tier, main), c.text_final
+
+    def centre(self, cands):
+        """Per table (streets, addresses): the most important settlement
+        (lowest places.id: the capital first) among the best-fitting rows,
+        those of the best fit tier with a text within
+        other_settlement_margin of the best; and that tier. Per table, so an
+        address that has the number in another city still beats the
+        capital's street without it."""
+        out = {}
+        if not self.rank["other_settlement_penalty"]:
+            return out
+        margin = self.rank["other_settlement_margin"]
+        for table in ("streets", "addresses"):
+            fits = [(self.fit(c), c) for c in cands if c.table == table]
+            if not fits:
+                continue
+            tier = max(f[0] for f, _ in fits)
+            best = max(f[1] for f, _ in fits if f[0] == tier)
+            ids = [c.row["city_id"] for f, c in fits
+                   if f[0] == tier and f[1] >= best - margin - 1e-9 and c.row["city_id"] is not None]
+            if ids:
+                out[table] = (self.rows("places", [min(ids)])[0], tier)
+        return out
+
+    def fits_centre(self, c, centre, tier):
+        """In the centre (its settlement, or within its city reach), and
+        through a current name when the best-fitting rows are. No row fits
+        better than those (the centre is chosen among them), so none that
+        does is ever penalised."""
+        return self.in_centre(c.row, centre) and self.fit(c)[0][1] >= tier[1]
+
+    def in_centre(self, row, centre):
+        return (row["city_id"] == centre["id"]
+                or distance_km(centre["lat"], centre["lon"], row["lat"], row["lon"]) <= self.city_reach_km(centre))
 
     def has_number(self, table, row, numbers):
         keys = {k for text in self.name_texts(table, row) for k in self.keys(text)}

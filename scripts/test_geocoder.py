@@ -612,6 +612,367 @@ class BuilderTest(unittest.TestCase):
                 s4.con.close()
 
 
+def rules_collector():
+    """A second made-up country for the ranking rules of config v3, shaped
+    after the five known queries the first full-Georgia run failed
+    ('gudauri', 'sarpi', 'ერედვი', 'ჭავჭავაძის 37', 'თბილისის ზღვა'), but
+    with other coordinates and every number made up."""
+    c = gb.Collector(CONFIG)
+    node, way = c.node, c.way
+
+    def line(way_id, tags, *points):
+        way(way_id, tags, list(range(way_id * 10, way_id * 10 + len(points))), [(lon, lat) for lat, lon in points])
+
+    def area(way_id, tags, lat0, lon0, lat1, lon1):
+        refs = [way_id * 10 + i for i in range(4)]
+        way(way_id, tags, refs + refs[:1], box(lon0, lat0, lon1, lat1))
+
+    # Settlements: the capital, a regional capital, a town, villages, a
+    # hamlet, a legal locality and an occupied locality (inside the zone).
+    node(1, {"place": "city", "name": "თბილისი", "name:en": "Tbilisi", "population": "1300000",
+             "capital": "yes", "wikidata": "Q994"}, 41.70, 44.30)
+    node(2, {"place": "city", "name": "ქუთაისი", "name:en": "Kutaisi", "population": "130000",
+             "capital": "4", "wikidata": "Q1024"}, 42.00, 44.10)
+    node(3, {"place": "town", "name": "ფოთი", "name:en": "Poti", "population": "41000"}, 41.95, 44.45)
+    node(4, {"place": "village", "name": "სარფი", "name:en": "Sarpi", "population": "785",
+             "wikidata": "Q2302798"}, 41.55, 44.95)
+    node(5, {"place": "village", "name": "გუდაური", "name:en": "Gudauri", "population": "54",
+             "wikidata": "Q1553013"}, 42.10, 44.30)
+    node(6, {"place": "locality", "name": "Ирыхъæу", "name:ka": "ერედვი", "name:en": "Eredvi",
+             "population": "0", "wikidata": "Q3650323"}, 42.25, 44.65)
+    node(7, {"place": "hamlet", "name": "ხეითი", "name:en": "Kheiti"}, 42.13, 44.52)
+    node(8, {"place": "locality", "name": "ბოდორნა", "name:en": "Bodorna"}, 41.90, 44.60)
+    node(9, {"place": "village", "name": "წერეთელი", "name:en": "Tsereteli", "population": "900"}, 41.55, 44.50)
+    # 'sarpi': a road named after the village, a motorway that lists it among
+    # the towns it links (far away, near Poti), the crossing at the state
+    # border (name:en only) and the foreign post across it.
+    line(100, {"highway": "trunk", "name": "სარფი"}, (41.549, 44.96), (41.5495, 44.97))
+    route = {"highway": "motorway", "name": "სენაკი — ფოთი — სარფი", "name:en": "Senaki — Poti — Sarpi",
+             "name:ru": "Сенаки — Поти — Сарпи"}
+    line(101, route, (41.95, 44.40), (41.95, 44.45))
+    line(102, dict(route), (41.95, 44.45), (41.95, 44.50))
+    node(103, {"barrier": "border_control", "name:en": "Sarpi Border Control"}, 41.551, 44.995)
+    node(104, {"barrier": "border_control", "name": "Sarp Hudut Kapısı"}, 41.551, 45.005)   # abroad
+    # 'gudauri': an access road 5 km away under construction, the ski area, a resort.
+    line(110, {"highway": "construction", "construction": "secondary", "name": "გუდაურთან მისასვლელი",
+               "name:en": "Gudauri Access Road"}, (42.06, 44.33), (42.05, 44.36))
+    area(111, {"landuse": "winter_sports", "name": "Gudauri Ski Resort"}, 42.115, 44.31, 42.125, 44.33)
+    node(112, {"leisure": "resort", "name": "Gudauriski"}, 42.095, 44.31)
+    node(113, {"tourism": "resort", "name": "ბახმარო რეზორტი", "name:en": "Bakhmaro Resort"}, 41.85, 44.20)
+    # 'ერედვი': streets inside the zone (dropped), a legal road listing it
+    # 14 km away (hyphens without spaces), a street in the capital named after it.
+    line(120, {"highway": "residential", "name": "ერედვის ქუჩა"}, (42.25, 44.651), (42.251, 44.652))
+    line(121, {"highway": "tertiary", "name": "ტირძნისი-დიცი-ერედვი-ხეითი"}, (42.10, 44.62), (42.12, 44.63))
+    line(122, {"highway": "residential", "name": "ერედვის ქუჩა", "name:en": "Eredvi Street"},
+         (41.71, 44.31), (41.711, 44.312))
+    # A legal locality and a road near it that has its name among other words.
+    line(125, {"highway": "primary", "name": "ახალი ბოდორნის გზატკეცილი"}, (41.92, 44.60), (41.93, 44.66))
+    # A person-named avenue 24 km from a village of that surname keeps its rank.
+    line(126, {"highway": "primary", "name": "აკაკი წერეთლის გამზირი", "name:en": "Akaki Tsereteli Avenue"},
+         (41.720, 44.320), (41.722, 44.330))
+    # 'თბილისის ზღვა': the reservoir (alt name), a primary street in the
+    # capital whose old name has 'ზღვა', a street named after the reservoir;
+    # a landuse=reservoir and a water=lake without natural=water.
+    c.relation(130, {"type": "multipolygon", "natural": "water", "water": "reservoir",
+                     "name": "თბილისის წყალსაცავი", "alt_name:ka": "თბილისის ზღვა", "name:en": "Tbilisi reservoir",
+                     "wikidata": "Q1899389"}, [("w", 131, "outer"), ("w", 132, "outer")])
+    way(131, {}, [1310, 1311, 1312], [(44.35, 41.74), (44.37, 41.74), (44.37, 41.76)])
+    way(132, {}, [1312, 1313, 1310], [(44.37, 41.76), (44.35, 41.76), (44.35, 41.74)])
+    line(133, {"highway": "primary", "name": "ლეხ კაჩინსკის ქუჩა", "name:en": "Lech Kaczyński Street",
+               "old_name": "შავი ზღვის ქუჩა", "old_name:en": "Shavi Zghva Street;Black Sea Street"},
+         (41.690, 44.28), (41.690, 44.31))
+    line(134, {"highway": "residential", "name": "თბილისის ზღვის ქუჩა", "name:en": "Tbilisi Zghvi Street"},
+         (41.765, 44.36), (41.766, 44.362))
+    area(135, {"landuse": "reservoir", "name": "ჟინვალის წყალსაცავი"}, 42.20, 44.10, 42.22, 44.13)
+    area(136, {"water": "lake", "name": "ლისის ტბა"}, 41.74, 44.20, 41.745, 44.205)
+    area(137, {"natural": "water", "water": "river", "name": "მტკვარი"}, 41.68, 44.28, 41.685, 44.32)
+    # 'ჭავჭავაძის 37': a short tertiary avenue in the capital and a long
+    # primary one in Kutaisi, each with a number 37.
+    line(140, {"highway": "tertiary", "name": "ილია ჭავჭავაძის გამზირი"}, (41.705, 44.270), (41.706, 44.275))
+    node(141, {"addr:housenumber": "37", "addr:street": "ილია ჭავჭავაძის გამზირი"}, 41.7052, 44.2705)
+    line(142, {"highway": "primary", "name": "ილია ჭავჭავაძის გამზირი"}, (42.000, 44.080), (42.000, 44.140))
+    node(143, {"addr:housenumber": "37", "addr:street": "ილია ჭავჭავაძის გამზირი"}, 42.0002, 44.1001)
+    # 'ვაჟა-ფშაველას 70': the capital has the avenue, only Kutaisi has number 70.
+    line(144, {"highway": "primary", "name": "ვაჟა-ფშაველას გამზირი"}, (41.725, 44.25), (41.726, 44.27))
+    line(145, {"highway": "residential", "name": "ვაჟა-ფშაველას ქუჩა"}, (42.005, 44.09), (42.006, 44.092))
+    node(146, {"addr:housenumber": "70", "addr:street": "ვაჟა-ფშაველას ქუჩა"}, 42.0052, 44.0905)
+    # Only another city has the exact number: the capital has 49ა, 20-22
+    # and '166 კორპ. 8' on its street of that name, Kutaisi 49, 22 and 8.
+    line(147, {"highway": "residential", "name": "ოთარ ჭილაძის ქუჩა"}, (41.715, 44.280), (41.716, 44.285))
+    for i, (number, lon) in enumerate((("49ა", 44.2805), ("20-22", 44.2815), ("166 კორპ. 8", 44.2825))):
+        node(1470 + i, {"addr:housenumber": number, "addr:street": "ოთარ ჭილაძის ქუჩა"}, 41.7152, lon)
+    line(148, {"highway": "residential", "name": "ოთარ ჭილაძის ქუჩა"}, (42.010, 44.120), (42.011, 44.125))
+    for i, (number, lon) in enumerate((("49", 44.1205), ("22", 44.1215), ("8", 44.1225))):
+        node(1480 + i, {"addr:housenumber": number, "addr:street": "ოთარ ჭილაძის ქუჩა"}, 42.0102, lon)
+    # Old names: the capital's secondary street was Lermontov street and
+    # only Kutaisi has one now; the capital's former Pushkin street is
+    # secondary, its Pushkin street now residential.
+    line(149, {"highway": "secondary", "name": "გიგა ლორთქიფანიძის ქუჩა", "old_name": "მიხეილ ლერმონტოვის ქუჩა"},
+         (41.720, 44.290), (41.721, 44.295))
+    line(150, {"highway": "tertiary", "name": "მიხეილ ლერმონტოვის ქუჩა"}, (42.020, 44.100), (42.021, 44.105))
+    line(151, {"highway": "secondary", "name": "ნიკო ნიკოლაძის ქუჩა", "old_name": "ალექსანდრე პუშკინის ქუჩა"},
+         (41.725, 44.290), (41.726, 44.295))
+    line(152, {"highway": "residential", "name": "ალექსანდრე პუშკინის ქუჩა"}, (41.730, 44.290), (41.731, 44.293))
+    line(153, {"highway": "tertiary", "name": "ალექსანდრე პუშკინის ქუჩა"}, (42.025, 44.100), (42.026, 44.105))
+    # A district of a far town named after a person, and Kutaisi's street
+    # of that person.
+    node(10, {"place": "suburb", "name": "შოთა რუსთაველის დასახლება"}, 41.56, 44.80)
+    line(154, {"highway": "secondary", "name": "შოთა რუსთაველის ქუჩა", "name:en": "Shota Rustaveli Street"},
+         (42.010, 44.100), (42.012, 44.110))
+    # A hotel in the capital that shares the name of a far hamlet, one
+    # with the name of a town, and a street that only begins with a far
+    # village's name.
+    node(11, {"place": "hamlet", "name": "ალმა", "name:en": "Alma"}, 42.45, 44.05)
+    node(155, {"tourism": "hotel", "name": "ალმა"}, 41.702, 44.305)
+    node(156, {"tourism": "hotel", "name": "ფოთი"}, 41.703, 44.306)
+    node(12, {"place": "village", "name": "გული", "population": "200"}, 42.40, 44.20)
+    line(157, {"highway": "residential", "name": "გულნარას ქუჩა"}, (41.705, 44.300), (41.706, 44.302))
+    # An occupied village whose name a square of the capital has.
+    node(13, {"place": "village", "name": "Тависуплеба", "name:ka": "თავისუფლება", "population": "300"},
+         42.35, 44.75)
+    line(158, {"highway": "primary", "name": "თავისუფლების მოედანი", "name:en": "Freedom Square"},
+         (41.695, 44.300), (41.696, 44.302))
+    # Newly indexed kinds inside the occupied area and its 100 m buffer
+    # (all dropped), and a named crossing 1 km outside the line (no border).
+    area(170, {"landuse": "reservoir", "name": "ზონის წყალსაცავი"}, 42.30, 44.70, 42.31, 44.71)
+    area(171, {"water": "lake", "name": "ზონის ტბა"}, 42.32, 44.70, 42.33, 44.71)
+    area(172, {"natural": "water", "water": "reservoir", "name": "ზონის ზღვა"}, 42.34, 44.70, 42.35, 44.71)
+    node(173, {"leisure": "resort", "name": "ზონის კურორტი"}, 42.30, 44.75)
+    area(174, {"tourism": "resort", "name": "ზონის სასტუმრო კომპლექსი"}, 42.36, 44.72, 42.37, 44.73)
+    node(175, {"barrier": "border_control", "name": "ზონის საზღვარი"}, 42.30, 44.65)
+    node(176, {"leisure": "resort", "name": "ბუფერის კურორტი"}, 42.1995, 44.70)
+    node(177, {"barrier": "border_control", "name": "ხაზის პუნქტი"}, 42.19, 44.70)
+    # Occupied and legal places of one name: of like importance, and an
+    # occupied village far bigger than the legal hamlet.
+    node(14, {"place": "village", "name": "Ахалсопели", "name:ka": "ახალსოფელი", "population": "300"}, 42.28, 44.72)
+    node(15, {"place": "village", "name": "ახალსოფელი", "population": "300"}, 41.85, 44.20)
+    node(16, {"place": "village", "name": "Колхида", "name:ka": "კოლხიდა", "population": "2500", "wikidata": "Q1"},
+         42.25, 44.72)
+    node(17, {"place": "hamlet", "name": "კოლხიდა"}, 41.80, 44.60)
+    c.finish_relations()
+    return c
+
+
+class RankingRulesTest(unittest.TestCase):
+    """Config v3: an exact place or feature before a street that merely
+    has its name; the capital first for a street or address without a
+    position or settlement; water, resorts, localities and border
+    crossings are indexed."""
+
+    KUTAISI = (42.00, 44.10)
+    FAR = (42.45, 44.95)          # far from the capital and from ერედვი's roads
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.db = Path(cls.tmp.name) / "rules.sqlite"
+        cls.builder = gb.Builder(CONFIG, FOLD, zones(), rules_collector()).build()
+        gb.write_database(cls.db, cls.builder, gb.base_meta(gb.DEFAULT_CONFIG, gb.DEFAULT_FOLD_SPEC, FOLD, CONFIG))
+        cls.con = sqlite3.connect(cls.db)
+        cls.searcher = Searcher(str(cls.db))
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.con.close()
+        cls.searcher.con.close()
+        cls.tmp.cleanup()
+
+    def hits(self, text, near=None, limit=10):
+        hits = self.searcher.search(text, near=near, limit=limit)
+        self.assertTrue(hits, f"nothing for {text!r}")
+        return hits
+
+    def test_exact_village_beats_a_route_that_lists_it(self):
+        hits = self.hits("sarpi")
+        self.assertEqual((hits[0]["table"], hits[0]["label_ka"]), ("places", "სარფი"))
+        streets = [h for h in hits if h["table"] == "streets"]
+        self.assertEqual({h["name"] for h in streets}, {"სარფი", "სენაკი — ფოთი — სარფი"})   # still offered, below
+        self.assertTrue(all(h["score"] < hits[0]["score"] for h in hits[1:]))
+        self.assertEqual(self.hits("სარფი")[0]["label_ka"], "სარფი")
+
+    def test_exact_village_beats_a_street_near_it(self):
+        for near in (None, TBILISI):
+            hits = self.hits("gudauri", near)
+            self.assertEqual((hits[0]["table"], hits[0]["kind"]), ("places", "village"), near)
+            road = next(h for h in hits if h["table"] == "streets")
+            self.assertEqual(road["name"], "გუდაურთან მისასვლელი")
+
+    def test_exact_locality_and_hamlet_beat_streets(self):
+        self.assertEqual(self.q("SELECT kind FROM places WHERE name = 'ბოდორნა'"), [("locality",)])
+        self.assertEqual(self.q("SELECT kind FROM places WHERE name = 'ხეითი'"), [("hamlet",)])
+        top = self.hits("ბოდორნა")[0]
+        self.assertEqual((top["table"], top["kind"]), ("places", "locality"))
+        top = self.hits("kheiti")[0]                     # the road 'ტირძნისი-დიცი-ერედვი-ხეითი' lists it
+        self.assertEqual((top["table"], top["kind"]), ("places", "hamlet"))
+        # A street-type word asks for the street.
+        self.assertEqual(self.hits("ბოდორნის გზატკეცილი")[0]["table"], "streets")
+
+    def test_occupied_place_stays_and_beats_streets_named_after_it(self):
+        rows = self.q("SELECT kind, occupied, zone, label_ka FROM places WHERE name_ka = 'ერედვი'")
+        self.assertEqual(rows, [("locality", 1, "occupied", "ერედვი")])
+        streets = [r[0] for r in self.q("SELECT lat FROM streets WHERE name = 'ერედვის ქუჩა'")]
+        self.assertEqual(len(streets), 1)                                   # the one in the zone is gone
+        self.assertLess(streets[0], 42.0)
+        for text, near in (("ერედვი", None), ("eredvi", None), ("ერედვი", self.FAR), ("Эредви", (42.10, 44.62))):
+            hits = self.hits(text, near)
+            self.assertEqual((hits[0]["table"], hits[0].get("occupied"), hits[0]["routable"]), ("places", 1, False),
+                             (text, near))
+            self.assertEqual(label(hits[0]), "ერედვი")
+            for hit in hits[1:]:
+                self.assertTrue(hit["routable"], text)
+
+    def test_named_water_beats_a_street_found_through_the_city(self):
+        hits = self.hits("თბილისის ზღვა")
+        self.assertEqual((hits[0]["table"], hits[0]["kind"]), ("pois", "water"))
+        self.assertEqual(hits[0]["name"], "თბილისის წყალსაცავი")
+        names = [h["name"] for h in hits]
+        self.assertIn("ლეხ კაჩინსკის ქუჩა", names)                    # 'ზღვა' in Tbilisi, still offered
+        street = hits[names.index("ლეხ კაჩინსკის ქუჩა")]
+        self.assertGreater(names.index("ლეხ კაჩინსკის ქუჩა"), 0)      # below the reservoir
+        self.assertLess(street["score"], hits[0]["score"])
+        self.assertEqual(self.hits("თბილისის ზღვა", TBILISI)[0]["kind"], "water")
+        # Without the whole name, the reading 'ზღვა in Tbilisi' still works.
+        self.assertEqual(self.hits("შავი ზღვის ქუჩა თბილისი")[0]["name"], "ლეხ კაჩინსკის ქუჩა")
+
+    def test_water_bodies_are_indexed(self):
+        water = dict(self.q("SELECT name, kind FROM pois WHERE kind = 'water'"))
+        self.assertEqual(set(water), {"თბილისის წყალსაცავი", "ჟინვალის წყალსაცავი", "ლისის ტბა"})   # no river
+        self.assertEqual(self.hits("ჟინვალის წყალსაცავი")[0]["kind"], "water")
+        self.assertEqual(self.hits("zhinvali")[0]["kind"], "water")
+
+    def test_resorts_and_border_crossings_are_indexed(self):
+        resorts = {r[0] for r in self.q("SELECT name FROM pois WHERE kind = 'resort'")}
+        self.assertEqual(resorts, {"Gudauriski", "ბახმარო რეზორტი"})
+        crossing = self.q("SELECT name_en, label_ka FROM pois WHERE kind = 'border_control'")
+        self.assertEqual(crossing, [("Sarpi Border Control", "Sarpi Border Control")])   # the foreign post is gone
+        self.assertEqual(self.hits("gudauriski")[0]["kind"], "resort")
+        self.assertEqual(self.hits("Bakhmaro Resort")[0]["kind"], "resort")
+        self.assertEqual(self.hits("sarpi border control")[0]["kind"], "border_control")
+        self.assertEqual(self.hits("საბაჟო სარფი")[0]["kind"], "border_control")       # category + village
+        self.assertIn("border_control", [h["kind"] for h in self.hits("sarpi")])
+
+    def test_person_named_avenue_far_from_a_village_keeps_its_rank(self):
+        for near in (None, TBILISI):
+            self.assertEqual(self.hits("tsereteli", near)[0]["name"], "აკაკი წერეთლის გამზირი", near)
+
+    def test_address_without_city_or_position_prefers_the_capital(self):
+        top = self.hits("ჭავჭავაძის 37")[0]
+        self.assertEqual((top["table"], top["housenumber"]), ("addresses", "37"))
+        self.assertLess(top["lat"], 41.8)                                    # Tbilisi, not Kutaisi
+        top = self.hits("chavchavadze")[0]
+        self.assertEqual((top["table"], top["kind"]), ("streets", "tertiary"))   # the capital's avenue
+        # A position or a named settlement decides instead.
+        self.assertGreater(self.hits("ჭავჭავაძის 37", (42.0, 44.1))[0]["lat"], 41.9)
+        self.assertGreater(self.hits("ჭავჭავაძის 37, ქუთაისი")[0]["lat"], 41.9)
+        self.assertGreater(self.hits("ქუთაისი ჭავჭავაძის 37")[0]["lat"], 41.9)
+        # Per table: an address that has the number beats the capital's street without it.
+        top = self.hits("ვაჟა-ფშაველას 70")[0]
+        self.assertEqual((top["table"], top["housenumber"]), ("addresses", "70"))
+        self.assertEqual(self.hits("ვაჟა-ფშაველას")[0]["kind"], "primary")      # the capital's avenue
+
+    def test_occupied_place_does_not_hide_a_street_near_the_user(self):
+        # 'თავისუფლება' in Tbilisi is Freedom Square, not the occupied village.
+        for text in ("ერედვი", "თავისუფლება"):
+            hits = self.hits(text, TBILISI)
+            self.assertEqual((hits[0]["table"], hits[0]["routable"]), ("streets", True), text)
+            occupied = [h for h in hits if h.get("occupied")]
+            self.assertEqual(len(occupied), 1, text)                       # still offered, flagged
+            self.assertFalse(occupied[0]["routable"])
+            # Without a position, or far from the street, it explains first.
+            for near in (None, self.FAR):
+                top = self.hits(text, near)[0]
+                self.assertEqual((top["table"], top.get("occupied")), ("places", 1), (text, near))
+        # A road that lists it stays below it even beside the user.
+        hits = self.hits("ერედვი", (42.10, 44.62))
+        self.assertEqual(hits[0].get("occupied"), 1)
+        self.assertEqual(hits[1]["name"], "ტირძნისი-დიცი-ერედვი-ხეითი")
+
+    def test_district_named_after_a_person_holds_no_street(self):
+        # A district of a far town holds no street near the user (it only
+        # takes street_named_like_place, as a village would).
+        for text in ("შოთა რუსთაველის", "shota rustavelis"):
+            hits = self.hits(text, self.KUTAISI)
+            self.assertEqual((hits[0]["table"], hits[0]["name"]), ("streets", "შოთა რუსთაველის ქუჩა"), text)
+            self.assertIn("suburb", [h["kind"] for h in hits])             # the far district, below
+            self.assertIn("შოთა რუსთაველის ქუჩა", [h["name"] for h in self.hits(text)])
+
+    def test_poi_named_like_a_far_place_keeps_its_rank(self):
+        hits = self.hits("ალმა", TBILISI)
+        self.assertEqual((hits[0]["table"], hits[0]["kind"]), ("pois", "hotel"))
+        self.assertIn("hamlet", [h["kind"] for h in hits])
+        # A city or town still comes before every POI named after it.
+        hits = self.hits("ფოთი", TBILISI)
+        self.assertEqual((hits[0]["table"], hits[0]["kind"]), ("places", "town"))
+        self.assertEqual((hits[1]["table"], hits[1]["kind"]), ("pois", "hotel"))
+
+    def test_named_after_needs_the_word_or_its_stem(self):
+        s = self.searcher
+
+        def named(text, name):
+            row = s.con.execute("SELECT * FROM streets WHERE name = ?", (name,)).fetchone()
+            return s.named_as("streets", row, s.fold.parse_query(text).required, stem=True)
+
+        # The noise word 'georgia' (Russian 'Георгия') is a word of a name here.
+        self.assertFalse(s.words_are(s.keys("площадь Георгия Саакадзе"), s.fold.parse_query("саакадзе").required,
+                                     stem=True))
+
+        self.assertTrue(named("ერედვი", "ერედვის ქუჩა"))
+        self.assertTrue(named("eredvi", "ერედვის ქუჩა"))
+        self.assertTrue(named("sarpi", "სარფი"))
+        self.assertFalse(named("გული", "გულნარას ქუჩა"))             # only begins with it
+        self.assertFalse(named("tsereteli", "აკაკი წერეთლის გამზირი"))  # a given name besides it
+
+    def test_address_with_the_exact_number_only_in_another_city(self):
+        # The capital has 49ა, 20-22 and '166 კორპ. 8'; only Kutaisi has 49, 22 and 8.
+        for number in ("49", "22", "8"):
+            top = self.hits(f"ჭილაძის {number}")[0]
+            self.assertEqual((top["table"], top["housenumber"]), ("addresses", number), number)
+            self.assertGreater(top["lat"], 41.9, number)
+        top = self.hits("ჭილაძის 49ა")[0]
+        self.assertEqual((top["housenumber"], top["lat"] < 41.8), ("49ა", True))
+        top = self.hits("ჭილაძის 20-22")[0]
+        self.assertEqual((top["housenumber"], top["lat"] < 41.8), ("20-22", True))
+        # When the capital has the number too, the capital's (the 37 test above).
+
+    def test_current_name_beats_an_old_name(self):
+        # Only Kutaisi has a Lermontov street now; the capital's was renamed.
+        for text in ("მიხეილ ლერმონტოვის", "lermontovis"):
+            top = self.hits(text)[0]
+            self.assertEqual((top["name"], top["lat"] > 41.9), ("მიხეილ ლერმონტოვის ქუჩა", True), text)
+        # A position decides instead: the old name still finds the street.
+        self.assertEqual(self.hits("lermontovis", TBILISI)[0]["name"], "გიგა ლორთქიფანიძის ქუჩა")
+        # The capital has a Pushkin street now and a secondary one that was.
+        for text in ("პუშკინის", "ალექსანდრე პუშკინის"):
+            hits = self.hits(text)
+            self.assertEqual((hits[0]["name"], hits[0]["kind"]), ("ალექსანდრე პუშკინის ქუჩა", "residential"), text)
+            self.assertIn("ნიკო ნიკოლაძის ქუჩა", [h["name"] for h in hits])
+
+    def test_new_kinds_inside_the_occupied_area_are_dropped(self):
+        names = {r[0] for r in self.q("SELECT name FROM pois")}
+        for name in ("ზონის წყალსაცავი", "ზონის ტბა", "ზონის ზღვა", "ზონის კურორტი", "ზონის სასტუმრო კომპლექსი",
+                     "ზონის საზღვარი", "ბუფერის კურორტი"):
+            self.assertNotIn(name, names)
+        self.assertEqual(self.builder.stats["pois_dropped_occupied"], 6)
+        self.assertEqual(self.builder.stats["pois_dropped_buffer"], 1)
+        z = zones()
+        for table in ("streets", "addresses", "pois"):
+            for lat, lon in self.q(f"SELECT lat, lon FROM {table}"):
+                self.assertNotIn(z.zone(lat, lon), ("occupied", "buffer", "outside"), table)
+        # A crossing at the line is a line_checkpoint: no border, and no exact feature.
+        self.assertEqual(self.q("SELECT kind FROM pois WHERE name = 'ხაზის პუნქტი'"), [("line_checkpoint",)])
+        self.assertNotIn("line_checkpoint", CONFIG["ranking"]["exact_first"]["feature_kinds"])
+        self.assertEqual([h for h in self.searcher.search("ზონის ტბა", limit=10) if "ზონის" in (h["name"] or "")], [])
+
+    def test_occupied_and_legal_places_of_one_name(self):
+        hits = self.hits("ახალსოფელი")                                     # like importance: the legal one
+        self.assertEqual((hits[0]["occupied"], hits[1]["occupied"]), (0, 1))
+        hits = self.hits("კოლხიდა")                                        # a far bigger occupied village
+        self.assertEqual((hits[0]["occupied"], hits[0]["routable"], hits[1]["kind"]), (1, False, "hamlet"))
+
+    def q(self, sql, *args):
+        return self.con.execute(sql, args).fetchall()
+
+
 class GateTest(unittest.TestCase):
 
     @classmethod

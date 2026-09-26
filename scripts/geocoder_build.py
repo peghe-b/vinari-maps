@@ -13,8 +13,9 @@ lost, and writes one SQLite file with four searchable tables:
   addresses  addr:housenumber with its street (or addr:place) and settlement
   pois       what drivers need (fuel with CNG/LPG, EV charging, parking, car
              wash, car repair, tyres, hospital, police, border control) and
-             named destinations (airports, stations, passes, lakes, sights,
-             hotels, malls ...), per config/geocoder.json
+             named destinations (airports, stations, passes, lakes and
+             reservoirs, sights, hotels, resorts, malls ...), per
+             config/geocoder.json
 
 Each table has an FTS5 (or FTS4, --fts fts4) index over folded search keys
 (scripts/geocoder_fold.py), and each row id is its rank by importance, so
