@@ -27,7 +27,11 @@ workflow) and checks:
      must end on a destination-only edge (or a main road the band exempts).
    - app: the app's own request (config/gate_routes.json app_request, with
      its 300 m search cutoff). Where no legal ground lies within the cutoff,
-     it must find nothing; elsewhere it follows the loose rules.
+     it must find nothing; elsewhere it follows the loose rules. It runs
+     once for every costing_options variant the app can send
+     (app_request.costing_options_variants: none, the owner's "no unpaved
+     roads" and "I drive a 4x4" settings), because use_tracks 0.5 removes
+     the default track penalty and makes tracks in the band cheaper.
    These run without a date, which is the most permissive way to route.
 3. App pre-check. The published nogo_zones.geojson, which the app uses to
    refuse destinations before routing, must refuse every must-fail target
@@ -345,10 +349,11 @@ class Valhalla:
         return body
 
     def route(self, a, b, date=None, bidirectional=True, target_cutoff=None,
-              costing="auto", alternates=2, date_type=None):
+              costing="auto", alternates=2, date_type=None, costing_options=None):
         """Ask for a car route. Returns (code, body) as _post does.
         date_type 0 means 'leave now' (what the app sends); a date string
-        means 'depart at' that local time."""
+        means 'depart at' that local time. costing_options is sent only when
+        given, as the app does (its default request has no such key)."""
         target = {"lat": b["lat"], "lon": b["lon"]}
         if target_cutoff:
             target["search_cutoff"] = target_cutoff
@@ -363,13 +368,33 @@ class Valhalla:
             request["date_time"] = {"type": 1, "value": date}  # depart at, local time
         elif date_type is not None:
             request["date_time"] = {"type": date_type}
+        if costing_options is not None:
+            request["costing_options"] = costing_options
         return self._post("route", request)
 
-    def app_route(self, a, b, app):
-        """The request the app sends (gate_routes.json app_request)."""
+    def app_route(self, a, b, app, costing_options=None):
+        """The request the app sends (gate_routes.json app_request), with one
+        of its costing_options variants (None = the default request)."""
         return self.route(a, b, bidirectional=app["prioritize_bidirectional"],
                           target_cutoff=app["search_cutoff_m"], costing=app["costing"],
-                          alternates=app["alternates"], date_type=app["date_time_type"])
+                          alternates=app["alternates"], date_type=app["date_time_type"],
+                          costing_options=costing_options)
+
+
+def app_variants(app):
+    """[(label, costing_options)] for every request the app can send. The
+    default request (no costing_options) always comes first and is labelled
+    'app', as before, so earlier results stay comparable."""
+    out = [("app", None)]
+    for options in app.get("costing_options_variants", []):
+        if options is None:
+            continue
+        flat = []
+        for costing, values in sorted(options.items()):
+            for key, value in sorted(values.items()):
+                flat.append(f"{key}={json.dumps(value)}")
+        out.append((f"app ({', '.join(flat)})", options))
+    return out
 
 
 def trips(body):
@@ -499,20 +524,21 @@ def run_must_fail(test, places, v, checker, app, raw_roads):
         problems += more
         detail.update(info)
 
-    # app: the app's own request
+    # app: the app's own request, once per costing_options variant it can send
     gap = checker.legal_gap_m(b["lat"], b["lon"])
     detail["legal_ground_m"] = round(gap)
-    code, body = v.app_route(a, b, app)
-    if code:
-        detail["app"] = f"no route ({code})"
-    else:
+    for label, options in app_variants(app):
+        code, body = v.app_route(a, b, app, costing_options=options)
+        if code:
+            detail[label] = f"no route ({code})"
+            continue
         found = trips(body)
-        detail["app"] = f"route of {found[0][0]:.1f} km"
+        detail[label] = f"route of {found[0][0]:.1f} km"
         if gap > app["search_cutoff_m"] + APP_GAP_MARGIN_M:
-            problems.append(f"app: a route was found although the nearest legal ground is {gap:.0f} m from "
+            problems.append(f"{label}: a route was found although the nearest legal ground is {gap:.0f} m from "
                             f"the target, beyond the app's {app['search_cutoff_m']} m search cutoff")
-        shapes("app", found)
-        more, info = end_problems("app", found, v, checker)
+        shapes(label, found)
+        more, info = end_problems(label, found, v, checker)
         problems += more
         detail.update(info)
     return problems, detail

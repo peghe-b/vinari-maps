@@ -250,7 +250,11 @@ contract, which the gate tests with the settings in
 2. Send the destination with `search_cutoff` 300 m (costing `auto`,
    `date_time` type 0, `prioritize_bidirectional` true, `alternates` 2), and
    reject a result whose snapped end lies more than 300 m from the
-   requested point.
+   requested point. The only `costing_options` the app may add are the
+   owner's route settings, listed in `app_request.costing_options_variants`
+   (`auto.exclude_unpaved` true, or `auto.use_tracks` 0.5, never both, never
+   an `ignore_*` key); the gate runs the must-fail app check once per
+   variant and once without.
 3. Check every returned shape against `no_go_hard` and `georgia` as a second
    layer, and refuse to navigate a route that enters either.
 4. Search (georgia_geocoder.sqlite.gz, searched the way

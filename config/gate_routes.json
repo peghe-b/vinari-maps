@@ -3,7 +3,7 @@
   "_method": "Places: the OSM place node of the town (Overpass, maps.mail.ru mirror, OSM data as of 2026-09-25T22:24Z), moved to the nearest vertex of a trunk, primary, secondary, tertiary, unclassified or residential way within 250 m. Stub points: the point on the named OSM way that lies deepest inside the occupied polygon of clip config v1, sampled every 0.5 m (ways fetched from api.openstreetmap.org on 2026-09-26). The ways and the 'driven N m inside' figures come from the navigation research of 2026-09-26, which routed them on the public FOSSGIS Valhalla server before any clip. Version 2 (2026-09-26, after review): every must-fail test has a control leg, a legal point on the approach road at least 600 m from the occupied line and from the state border, which must be routable from the same origin; each control leg was routed on the public FOSSGIS Valhalla server on 2026-09-26 and its shape checked against the v2 no-go area and Georgia's border. The four Russian towns outside Geofabrik's extract are replaced by road vertices 195 to 435 m past the Upper Lars, Mamison, Sadakhlo, Red Bridge and Sarpi crossings, inside the extract. New stub points (84484871, 250174327, 399898439, 480352813) and Kodori targets come from Overpass (overpass-api.de, OSM base 2026-09-25T23:22Z to 23:40Z).",
   "clip_config_version": 2,
   "app_request": {
-    "_note": "The navigation request the app sends and the checks it runs around it (README, 'What the app must do'). gate.py runs every must-fail test a third time with these settings. Change this together with the app.",
+    "_note": "The navigation request the app sends and the checks it runs around it (README, 'What the app must do'). gate.py runs every must-fail test a third time with these settings, once per costing_options variant. Change this together with the app.",
     "costing": "auto",
     "search_cutoff_m": 300,
     "max_snap_m": 300,
@@ -12,7 +12,21 @@
     "date_time_type": 0,
     "refuse_inside": "no_go_hard",
     "refuse_outside": "georgia",
-    "confirm_inside": "soft_band_outer"
+    "confirm_inside": "soft_band_outer",
+    "costing_options_variants": [
+      null,
+      {
+        "auto": {
+          "exclude_unpaved": true
+        }
+      },
+      {
+        "auto": {
+          "use_tracks": 0.5
+        }
+      }
+    ],
+    "_costing_options_note": "The app sends costing_options only when the owner turns on a route setting (NavRoutePrefs.costingOptions in the iOS app): none by default, 'no unpaved roads' = auto.exclude_unpaved true, 'I drive a 4x4' = auto.use_tracks 0.5. The two never go together. gate.py runs the must-fail app check once per variant (null = the default request, without the key). use_tracks 0.5 drops the default track penalty (300 s and a 4x factor), so tracks in the band get cheaper; exclude_unpaved only forbids paved to unpaved changes mid-route. When the app sends a new costing option, add it here in the same release."
   },
   "summer_date": "2026-07-15T10:00",
   "winter_date": "2026-01-15T10:00",
