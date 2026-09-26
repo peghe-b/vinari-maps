@@ -28,6 +28,12 @@ The release happens only if every check passes:
    copies. No result of any query is a street, address or POI inside
    no_go_hard, and every place inside it is flagged and not routable.
 7. Speed. No query takes longer than max_query_ms.
+8. Cameras (the cameras table for the navigator's warnings). Their count
+   lies in the band of config/geocoder_gate.json counts.cameras; none (nor
+   either end of an average-speed section) is inside no_go_hard or outside
+   Georgia (checked with the zones in 4); every value is one the app can
+   use (kind, km/h limit, heading 0..359, road line 0..179, a road within
+   snap_m); and enough of them carry a limit and a road (gate cameras).
 
 Usage (as in the workflow):
   python scripts/geocoder_gate.py --db build/geocoder/georgia_geocoder.sqlite \
@@ -46,6 +52,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from geocoder_build import (DEFAULT_CONFIG, SCHEMA_VERSION, TABLES,  # noqa: E402
                             distance_m, sha256_file)
 from geocoder_fold import DEFAULT_SPEC as DEFAULT_FOLD_SPEC, Fold, check_vectors, romanise  # noqa: E402
+import geocoder_cameras  # noqa: E402
 from geocoder_search import Searcher, label  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -82,6 +89,8 @@ def db_counts(con):
     counts["streets_virtual"] = con.execute("SELECT count(*) FROM streets WHERE kind = 'virtual'").fetchone()[0]
     kinds = {f"{t}.{k}": n for t in ("places", "pois")
              for k, n in con.execute(f"SELECT kind, count(*) FROM {t} GROUP BY kind")}
+    if con.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'cameras'").fetchone():
+        counts["cameras"] = con.execute("SELECT count(*) FROM cameras").fetchone()[0]
     return counts, kinds
 
 
@@ -110,7 +119,7 @@ def check_previous(counts, previous_path, max_drop):
     if not before:
         return [], f"previous release {previous.get('tag')} has no geocoder"
     problems = []
-    for table in TABLES:
+    for table in TABLES + ("cameras",):
         if before.get(table) and counts.get(table, 0) < (1 - max_drop) * before[table]:
             problems.append(f"{table}: {counts.get(table, 0)} rows against {before[table]} in "
                             f"{previous.get('tag')}; more than {max_drop:.0%} fewer")
@@ -149,8 +158,12 @@ class ShapelyZones:
 
 def check_zones(con, zones):
     problems, detail = [], {}
-    for table in ("streets", "addresses", "pois"):
-        rows = con.execute(f"SELECT id, lon, lat FROM {table}").fetchall()
+    points = [(t, f"SELECT id, lon, lat FROM {t}") for t in ("streets", "addresses", "pois")]
+    if con.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'cameras'").fetchone():
+        points += [("cameras", "SELECT id, lon, lat FROM cameras"),
+                   ("camera section ends", "SELECT id, end_lon, end_lat FROM cameras WHERE end_lat IS NOT NULL")]
+    for table, sql in points:
+        rows = con.execute(sql).fetchall()
         if not rows:
             continue
         in_hard, in_georgia = zones.flags([r[1] for r in rows], [r[2] for r in rows])
@@ -195,6 +208,50 @@ def check_occupied_links(con, detail=None):
     if ids:
         problems.append(f"places: legal districts with an occupied parent, e.g. ids {ids}")
     return problems
+
+
+def check_cameras(con, config, gate):
+    """Every camera row holds values the app can use as they are."""
+    cfg, want = config["cameras"], gate["cameras"]
+    cols = {r[1] for r in con.execute("PRAGMA table_info(cameras)")}
+    expected = {"id", *geocoder_cameras.COLUMNS}
+    if cols != expected:
+        return [f"cameras: columns {sorted(cols)}, expected {sorted(expected)}"], None
+    problems = []
+    lo, hi = cfg["maxspeed_range"]
+    bad = {
+        "kind": f"kind NOT IN ({', '.join(repr(k) for k in geocoder_cameras.KINDS)})",
+        "maxspeed": f"maxspeed IS NOT NULL AND (maxspeed < {lo} OR maxspeed > {hi} OR maxspeed_src IS NULL)",
+        "maxspeed_src": "maxspeed_src IS NOT NULL AND (maxspeed IS NULL "
+                        "OR maxspeed_src NOT IN ('camera', 'relation', 'road'))",
+        "heading": "heading IS NOT NULL AND (heading < 0 OR heading > 359 OR heading_src IS NULL)",
+        "heading_src": "heading_src IS NOT NULL AND (heading IS NULL "
+                       "OR heading_src NOT IN ('oneway', 'relation', 'direction'))",
+        "road": f"(road_bearing IS NULL) != (road_dist_m IS NULL) OR (road_bearing IS NULL) != (road_class IS NULL) "
+                f"OR road_bearing < 0 OR road_bearing > 179 OR road_dist_m < 0 OR road_dist_m > {cfg['snap_m']}",
+        "section end": "(end_lat IS NULL) != (end_lon IS NULL) OR (end_lat IS NOT NULL AND kind != 'average_speed')",
+        "band": "band NOT IN (0, 1)",
+        "osm": "osm NOT GLOB 'n[0-9]*' AND osm NOT GLOB 'r[0-9]*'",
+    }
+    for name, where in bad.items():
+        ids = [r[0] for r in con.execute(f"SELECT id FROM cameras WHERE {where} LIMIT 5")]
+        if ids:
+            problems.append(f"cameras: bad {name}, e.g. ids {ids}")
+    dupes = con.execute("SELECT count(*) - count(DISTINCT osm) FROM cameras").fetchone()[0]
+    if dupes:
+        problems.append(f"cameras: {dupes} osm ids appear twice")
+    n = con.execute("SELECT count(*) FROM cameras").fetchone()[0]
+    with_speed = con.execute("SELECT count(*) FROM cameras WHERE maxspeed IS NOT NULL").fetchone()[0]
+    on_road = con.execute("SELECT count(*) FROM cameras WHERE road_bearing IS NOT NULL").fetchone()[0]
+    with_heading = con.execute("SELECT count(*) FROM cameras WHERE heading IS NOT NULL").fetchone()[0]
+    if n and with_speed < want["min_maxspeed_share"] * n:
+        problems.append(f"cameras: only {with_speed} of {n} have a speed limit "
+                        f"(at least {want['min_maxspeed_share']:.0%})")
+    if n and on_road < want["min_road_share"] * n:
+        problems.append(f"cameras: only {on_road} of {n} lie on a car road (at least {want['min_road_share']:.0%})")
+    kinds = dict(con.execute("SELECT kind, count(*) FROM cameras GROUP BY kind").fetchall())
+    return problems, {"rows": n, "kinds": kinds, "with_maxspeed": with_speed, "on_road": on_road,
+                      "with_heading": with_heading}
 
 
 def check_labels(con, config, fold_spec):
@@ -353,6 +410,11 @@ def main(argv=None):
                                                  json.loads(Path(args.fold).read_text(encoding="utf-8"))))
     if got is not None:
         record("labels", got[0], got[1])
+
+    got = guarded("cameras", lambda: check_cameras(
+        con, json.loads(Path(args.config).read_text(encoding="utf-8")), gate))
+    if got is not None:
+        record("cameras", got[0], got[1])
 
     zones = guarded("zones (shapely)", lambda: ShapelyZones(args.zones))
     if zones is not None:

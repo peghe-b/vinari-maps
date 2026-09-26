@@ -20,6 +20,10 @@ lost, and writes one SQLite file with four searchable tables:
              per config/geocoder.json; a POI whose name lacks its kind's word
              is also searchable as '<name> <word>' (kind_words)
 
+Beside them, without a search index, the table cameras: speed and red-light
+cameras and average-speed sections for the navigator's warnings
+(scripts/geocoder_cameras.py, config cameras).
+
 Each table has an FTS5 (or FTS4, --fts fts4) index over folded search keys
 (scripts/geocoder_fold.py), and each row id is its rank by importance, so
 the index returns the most important matches first.
@@ -64,10 +68,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from geocoder_fold import DEFAULT_SPEC as DEFAULT_FOLD_SPEC, Fold, romanise  # noqa: E402
+import geocoder_cameras  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG = ROOT / "config" / "geocoder.json"
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3                              # 3: the cameras table
 TABLES = ("places", "streets", "addresses", "pois")
 EARTH_R = 6371008.8
 M_PER_DEG = math.pi * EARTH_R / 180.0          # metres per degree of latitude
@@ -440,6 +445,21 @@ def load_config(path=DEFAULT_CONFIG):
             continue
         if cat["kind"] not in seen:
             problems.append(f"category {name!r} points at unknown POI kind {cat['kind']!r}")
+    cams = config.get("cameras")
+    if not isinstance(cams, dict):
+        problems.append("'cameras' is missing")
+    else:
+        for key in ("nodes", "red_light", "average_speed"):
+            conds = cams.get(key)
+            if not isinstance(conds, list) or not conds or not all(isinstance(c, dict) and c for c in conds):
+                problems.append(f"cameras.{key} must be a list of tag conditions")
+        if not set((cams.get("relations") or {}).values()) <= set(geocoder_cameras.KINDS):
+            problems.append(f"cameras.relations: kinds must be among {geocoder_cameras.KINDS}")
+        if cams.get("direction_degrees") not in ("facing", "travel"):
+            problems.append("cameras.direction_degrees must be 'facing' or 'travel'")
+        for key in ("snap_m", "parallel_m", "parallel_deg", "dedup_m", "heading_off_road_max_deg"):
+            if not isinstance(cams.get(key), (int, float)) or cams[key] < 0:
+                problems.append(f"cameras.{key} must be a number >= 0")
     if problems:
         raise ValueError("bad geocoder config: " + "; ".join(problems))
     return config
@@ -550,6 +570,7 @@ class Collector:
         self.addresses = []           # osm, lat, lon, tags, building
         self.street_ways = []         # id, tags, cls, coords
         self.pass_nodes = {}          # mountain pass node id -> index in pois
+        self.cams = geocoder_cameras.CameraCollector(config["cameras"])
         self.stats = Counter()
 
     # which objects matter
@@ -563,6 +584,8 @@ class Collector:
         return None
 
     def wants_relation(self, tags):
+        if self.cams.wants_relation(tags):
+            return True
         if tags.get("type") not in ("multipolygon", "boundary"):
             return False
         if tags.get("boundary") == "administrative":
@@ -571,6 +594,9 @@ class Collector:
                 or self.poi_rule(tags) is not None)
 
     def relation(self, rel_id, tags, members):
+        if self.cams.wants_relation(tags):
+            self.cams.relation(rel_id, tags, members)
+            return
         ways = [(ref, role) for typ, ref, role in members if typ == "w" and role in ("outer", "inner", "")]
         labels = [ref for typ, ref, role in members if typ == "n" and role in ("label", "admin_centre")]
         if not ways:
@@ -585,9 +611,11 @@ class Collector:
     # objects
 
     def node(self, osm_id, tags, lat, lon):
+        self.cams.node(osm_id, tags, lat, lon)
         self._object(f"n{osm_id}", tags, point=(lon, lat), node_id=osm_id)
 
     def way(self, osm_id, tags, refs, coords):
+        self.cams.way(osm_id, tags, refs, coords)
         if osm_id in self.member_ways:
             self.member_geom[osm_id] = (list(refs), list(coords))
         if not tags:
@@ -699,6 +727,15 @@ def read_pbf(path, collector):
             coords.append((n.location.lon, n.location.lat) if n.location.valid() else None)
         collector.way(obj.id, {t.k: t.v for t in obj.tags}, refs, coords)
     collector.finish_relations()
+    missing = collector.cams.missing_members()
+    if missing:
+        # An enforcement relation's untagged device node on no way: the pass
+        # above never saw it (untagged nodes are filtered out).
+        fp = (osmium.FileProcessor(str(path), osmium.osm.NODE)
+              .with_filter(osmium.filter.IdFilter(missing)))
+        for obj in fp:
+            if obj.location.valid():
+                collector.cams.coords[obj.id] = (obj.location.lon, obj.location.lat)
     collector.stats["seconds_read"] = round(time.time() - started, 1)
 
 
@@ -1352,6 +1389,8 @@ class Builder:
         self.build_streets()
         self.build_addresses()
         self.build_pois()
+        self.stats.update(self.c.cams.stats)
+        self.cameras = geocoder_cameras.build_cameras(self.c.cams, self.zones, self.config["cameras"], self.stats)
         return self
 
 
@@ -1549,6 +1588,7 @@ def write_database(path, builder, meta, engine="fts5"):
                 cats.append((phrase, name, cat["kind"], cat.get("attr")))
     con.executemany("INSERT INTO categories VALUES (?,?,?,?)", sorted(set(cats)))
     con.executescript(INDEXES)
+    counts["cameras"] = geocoder_cameras.write_cameras(con, builder.cameras)
 
     for table in TABLES:
         counts[table] = con.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
@@ -1655,7 +1695,7 @@ def main(argv=None):
         Path(args.report).write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"geocoder: {counts['places']} places ({counts['places_occupied']} occupied), "
           f"{counts['streets']} streets ({counts['streets_virtual']} virtual), {counts['addresses']} addresses, "
-          f"{counts['pois']} POIs; {report['db']['bytes']} bytes, {report['seconds']} s")
+          f"{counts['pois']} POIs, {counts['cameras']} cameras; {report['db']['bytes']} bytes, {report['seconds']} s")
     return 0
 
 

@@ -19,7 +19,7 @@ Map data © OpenStreetMap contributors. Map layers © OpenMapTiles.
 | `manifest.json` | SHA-256 and size of every file, the OSM data time, the Valhalla version and image digest, the clip config version with the polygon versions it used, clip statistics, every gate result and the edge count, one section per further file (glyphs, sprites, basemap, geocoder) with its own gate, `credits` (one entry per part: files, attribution, licence, notice, sources), `map_attribution` (the credit the map must always show) and the method (the source commit). The app must refuse any file whose SHA-256 does not match. |
 | `nogo_zones.geojson` | The areas used by the clip: the no-go area (occupied areas plus 100 m), the outer edge of the 500 m warning band, the occupied areas as drawn, and Georgia's border. The app uses it for its own checks (see "What the app must do"). |
 | `georgia.pmtiles` | The offline map: OpenMapTiles 3.16 schema vector tiles, zoom 0 to 14, every layer (buildings, land cover, land use, water, house numbers, POIs), names in Georgian and English, drawn by Planetiler from the same safety-clipped extract as the tiles. A road the router may never use is not on the map either; place labels, buildings and POIs in the occupied areas stay. |
-| `georgia_geocoder.sqlite.gz` | The offline search database (SQLite with FTS5, gzip): places, streets, addresses and POIs (what drivers need, everyday places such as pharmacies, ATMs, shops, cafes and schools, and destinations such as theatres, museums and malls; kinds and tags in `config/geocoder.json` `pois.rules`) from the same clipped extract. Places in the occupied territories are kept only to explain (occupied=1); nothing else there is searchable. `scripts/geocoder_search.py` is the reference search the app copies. |
+| `georgia_geocoder.sqlite.gz` | The offline search database (SQLite with FTS5, gzip): places, streets, addresses and POIs (what drivers need, everyday places such as pharmacies, ATMs, shops, cafes and schools, and destinations such as theatres, museums and malls; kinds and tags in `config/geocoder.json` `pois.rules`) from the same clipped extract. Places in the occupied territories are kept only to explain (occupied=1); nothing else there is searchable. `scripts/geocoder_search.py` is the reference search the app copies. It also carries the speed cameras for the navigator's warnings (table `cameras`, see "Speed cameras" below). |
 | `glyphs.zip` | MapLibre label glyphs for the map styles, made from Noto Sans Georgian and Noto Sans (SIL Open Font License 1.1; the licence texts are inside under `LICENSES/`). |
 | `sprites.zip` | The driving icon sprite sheets (1x and 2x) and their badge SVGs: glyphs from Maki and Temaki (CC0 1.0), badge designs MIT (texts inside under `LICENSES/`). |
 
@@ -312,6 +312,21 @@ contract, which the gate tests with the settings in
    these search names sit in alt_names and are never shown.
 
 When the app's request changes, change `app_request` in the same release.
+
+Speed cameras. The search database also holds a table `cameras` (no search
+index; schema in `scripts/geocoder_cameras.py`, rules in
+`config/geocoder.json` `cameras`) for the navigator's warnings: every
+`highway=speed_camera` node and `type=enforcement` relation (maxspeed,
+traffic_signals, average_speed) from the same clipped extract, with its kind
+(fixed, red_light, average_speed, a section with its end), its limit in km/h
+(from the camera, its relation or its road) and, matched to the car road it
+stands on, the travel direction it checks (`heading`, NULL for both). A
+direction tag in degrees is read as the way the camera looks, which is how
+Georgian mappers use it (47 of 54 on one-way roads point against the
+traffic); a one-way road decides over the tag. Cameras inside `no_go_hard` or
+abroad are dropped, and the geocoder gate checks the count (120 to 600), the
+zones and every value. OSM has only part of the real cameras: the app
+must never call the list complete, and road signs always win.
 
 ## Pipeline
 

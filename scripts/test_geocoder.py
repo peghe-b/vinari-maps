@@ -1390,7 +1390,8 @@ class GateTest(unittest.TestCase):
         gate_cfg.write_text(json.dumps({
             "counts": {"places": [1, 100]}, "kinds": {}, "indexed_share": {"places": 0.99},
             "max_drop_vs_previous": 0.2, "size_bytes": [1000, 10 ** 8], "max_query_ms": 5000,
-            "near": self.GATE["near"], "queries": queries}))
+            "near": self.GATE["near"], "queries": queries,
+            "cameras": {"min_maxspeed_share": 0.8, "min_road_share": 0.9}}))
         results = Path(self.tmp.name) / "results.json"
         with quiet():
             code = gg.main(["--db", str(self.db), "--zones", str(self.zones_path), "--results", str(results),
