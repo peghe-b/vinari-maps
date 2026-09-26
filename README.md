@@ -19,7 +19,7 @@ Map data © OpenStreetMap contributors. Map layers © OpenMapTiles.
 | `manifest.json` | SHA-256 and size of every file, the OSM data time, the Valhalla version and image digest, the clip config version with the polygon versions it used, clip statistics, every gate result and the edge count, one section per further file (glyphs, sprites, basemap, geocoder) with its own gate, `credits` (one entry per part: files, attribution, licence, notice, sources), `map_attribution` (the credit the map must always show) and the method (the source commit). The app must refuse any file whose SHA-256 does not match. |
 | `nogo_zones.geojson` | The areas used by the clip: the no-go area (occupied areas plus 100 m), the outer edge of the 500 m warning band, the occupied areas as drawn, and Georgia's border. The app uses it for its own checks (see "What the app must do"). |
 | `georgia.pmtiles` | The offline map: OpenMapTiles 3.16 schema vector tiles, zoom 0 to 14, every layer (buildings, land cover, land use, water, house numbers, POIs), names in Georgian and English, drawn by Planetiler from the same safety-clipped extract as the tiles. A road the router may never use is not on the map either; place labels, buildings and POIs in the occupied areas stay. |
-| `georgia_geocoder.sqlite.gz` | The offline search database (SQLite with FTS5, gzip): places, streets, addresses and driver POIs from the same clipped extract. Places in the occupied territories are kept only to explain (occupied=1); nothing else there is searchable. `scripts/geocoder_search.py` is the reference search the app copies. |
+| `georgia_geocoder.sqlite.gz` | The offline search database (SQLite with FTS5, gzip): places, streets, addresses and POIs (what drivers need, everyday places such as pharmacies, ATMs, shops, cafes and schools, and destinations such as theatres, museums and malls; kinds and tags in `config/geocoder.json` `pois.rules`) from the same clipped extract. Places in the occupied territories are kept only to explain (occupied=1); nothing else there is searchable. `scripts/geocoder_search.py` is the reference search the app copies. |
 | `glyphs.zip` | MapLibre label glyphs for the map styles, made from Noto Sans Georgian and Noto Sans (SIL Open Font License 1.1; the licence texts are inside under `LICENSES/`). |
 | `sprites.zip` | The driving icon sprite sheets (1x and 2x) and their badge SVGs: glyphs from Maki and Temaki (CC0 1.0), badge designs MIT (texts inside under `LICENSES/`). |
 
@@ -301,6 +301,15 @@ contract, which the gate tests with the settings in
    before an old_name, then the text score. So "ჭავჭავაძის 37" is
    Tbilisi's when Tbilisi has a 37, but Batumi's exact 49 beats Tbilisi's
    49ა, and a street with Lermontov's name now beats one that had it.
+   POIs (config v4): the kind comes from `pois.rules` (the first rule that
+   fits), and the app shows it in its own words; a kind with attrs (shop:
+   clothes, electronics ...; bank: atm; sports_centre: fitness, pool;
+   supermarket: convenience) can be shown by its attr. Unnamed POIs are
+   in the database only for the driver kinds, pharmacy, atm and car_parts,
+   and only to be listed for a category ('აფთიაქი', 'parking'). A POI
+   whose name lacks its kind's word is also searchable as '<name> <word>'
+   ('ამირანი კინო'), and a two-word Latin name also joined ('eastpoint');
+   these search names sit in alt_names and are never shown.
 
 When the app's request changes, change `app_request` in the same release.
 
@@ -461,6 +470,24 @@ failed; the workflow fails on any skip.
   POI next to a hamlet or locality of its own name comes right after it,
   and a hotel named after a town ("ყაზბეგი" in Batumi) comes after the
   town.
+- POI coverage (config v4) was checked on a local build over an Overpass
+  extract of Tbilisi (places, named streets and every POI, as points) and a
+  nationwide one of the new kinds, not on a full build. Swept against v3
+  over every place, street and POI name of the Tbilisi extract, with and
+  without a position: 10181 of the 10264 names that found themselves first
+  still do, 69 come second to fourth, mostly after a new POI of the same
+  or a transliterated name (the restaurant "პიანო" before the hotel
+  "Piano"), and 14 leave the first five. Most of those 14 are chain stores
+  where another branch of the same name now comes first; the real losses
+  are crowding: with about 20000 new POIs, a short name whose stem is a
+  common prefix ("Galo": "gal*" matches 118 POIs in Tbilisi) can fall out
+  of the 80 candidates the search reads per table (`ranking.candidates`;
+  160 recovered only 2 of the 14). The settlement reading's city bonus can
+  also let a new partial match beat a whole one ("თბილისი პოდი"). The new
+  kind bands of
+  `config/geocoder_gate.json` are Overpass estimates until the first run.
+  Not covered yet: clinics and dentists, arts and community centres,
+  banquet halls, currency exchange.
 - Owner decisions still open: what search shows for the occupied places
   that have no name:ka (hidden until decided;
   `places.occupied_without_name_ka` in `config/geocoder.json`), and whether

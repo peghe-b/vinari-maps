@@ -1,10 +1,11 @@
 {
   "_about": "What the offline geocoder (scripts/geocoder_build.py) takes from the safety-clipped OSM extract, how it ranks it, and the search words for categories and brands. The build copies this file into the database (meta key 'config_json'), so the app ranks with the same numbers. Bump 'version' whenever anything here changes, and say why in 'changelog'.",
-  "version": 3,
+  "version": 4,
   "changelog": [
     "1 (2026-09-26): first version. Places, named streets, addresses, driver POIs (fuel with CNG/LPG, charging, parking, car wash, car repair, tyres, hospital, police, border control) and named destinations (airports, stations, passes, lakes and reservoirs, sights, hotels, malls ...). Occupied areas: places only, flagged occupied=1.",
     "2 (2026-09-26): review fixes. Streets, addresses, POIs and district parents never take an occupied settlement as their city (occupied places no longer pull legal rows); labels label_ka/label_en (for an occupied place always from name:ka, romanised by the national system, never name or name:en; occupied places without name:ka are left out until the owner decides, places.occupied_without_name_ka); curated aliases (Kazbegi = Stepantsminda); border_control within pois.line_checkpoint_km of the occupied areas is no border crossing (kind line_checkpoint, unnamed ones dropped). Ranking: occupied places x0.9, a road-class prior for streets and addresses, lanes and dead ends x0.9 unless the query names one, a query's street-type word that a name lacks x0.85, a bonus for an initial ('ი. აბაშიძის'), street_named_like_place only for streets named wholly after the place or when the place is a city or town. Categories: exact words, then the same stem, then a word still being typed, never one in not_prefix ('პარკი' is no parking).",
-    "3 (2026-09-26): after the first full-Georgia run (known queries 59/64). Exact name first (ranking.exact_first): a place or named feature (water, beach, waterfall, cave, pass, ski area, resort, border crossing) whose name is exactly the whole query ranks above the streets and POIs that only carry that name: a street named after a settlement or feature and nothing else, a route that lists it ('სენაკი — ფოთი — სარფი', 'ტირძნისი-დიცი-ერედვი-ხეითი'), one within near_km of a settlement or feature of that name ('Gudauri Access Road'), any when it is a city or town; and above every row found only by reading a word as a settlement ('თბილისის ზღვა' is the reservoir, not 'ზღვა' in Tbilisi). An occupied place included, except that with a position it holds rows near the user only as a route or a neighbour. A street named after a person or a district ('შოთა რუსთაველის დასახლება' is a suburb of Rustavi), and a POI that only shares a far place's name (hotel 'ალმა'), keep their rank. No position and no settlement in the query: streets, and separately addresses, that do not fit like the best rows of the most important settlement among the best-fitting rows lose other_settlement_penalty ('ჭავჭავაძის 37' is Tbilisi's when Tbilisi has a 37; Batumi's exact 49 beats Tbilisi's 49ა; a current name beats an old_name). Water also from landuse=reservoir and water=lake/reservoir/lagoon without natural=water; resorts (leisure=resort, tourism=resort) are POIs of kind resort."
+    "3 (2026-09-26): after the first full-Georgia run (known queries 59/64). Exact name first (ranking.exact_first): a place or named feature (water, beach, waterfall, cave, pass, ski area, resort, border crossing) whose name is exactly the whole query ranks above the streets and POIs that only carry that name: a street named after a settlement or feature and nothing else, a route that lists it ('სენაკი — ფოთი — სარფი', 'ტირძნისი-დიცი-ერედვი-ხეითი'), one within near_km of a settlement or feature of that name ('Gudauri Access Road'), any when it is a city or town; and above every row found only by reading a word as a settlement ('თბილისის ზღვა' is the reservoir, not 'ზღვა' in Tbilisi). An occupied place included, except that with a position it holds rows near the user only as a route or a neighbour. A street named after a person or a district ('შოთა რუსთაველის დასახლება' is a suburb of Rustavi), and a POI that only shares a far place's name (hotel 'ალმა'), keep their rank. No position and no settlement in the query: streets, and separately addresses, that do not fit like the best rows of the most important settlement among the best-fitting rows lose other_settlement_penalty ('ჭავჭავაძის 37' is Tbilisi's when Tbilisi has a 37; Batumi's exact 49 beats Tbilisi's 49ა; a current name beats an old_name). Water also from landuse=reservoir and water=lake/reservoir/lagoon without natural=water; resorts (leisure=resort, tourism=resort) are POIs of kind resort.",
+    "4 (2026-09-26): POI coverage (the second simulator drive found 'rustavelis teatri' only as a university). New kinds, each with its OSM tags in pois.rules: theatre, cinema, museum, gallery, library, zoo, theme_park (water parks move here from park), viewpoint (museum, gallery, zoo, theme_park and viewpoint leave attraction, which keeps attraction and aquarium), sports_centre (gyms, sports halls, ice rinks, public swimming pools; attrs fitness, pool), school, kindergarten, public_service (Public Service Hall, 'იუსტიციის სახლი'), government (other offices, city halls, courts; attrs townhall, court), post_office, pharmacy, bank (attr atm), atm, restaurant, fast_food, cafe, bar, nightclub, shop (named shops of the listed types, attrs per type), car_parts and car_dealer (driver). supermarket also takes shop=convenience and shop=grocery (attr convenience): the Georgian chains (Ori Nabiji, Nikora, Libre, Spar) are tagged convenience. Unnamed POIs stay out except pharmacy, atm and car_parts, which keep them like the driver kinds (the app shows those as one row per kind, and lists them one by one only for a category). New in the builder, no change to the search: kind_words (a POI whose names lack its kind's word also gets '<its name> <word>' as a search name, so 'ამირანი კინო' finds the cinema Amirani, while a bare 'კინო' is no category, since 'ამირანი' alone would anchor the list to 'ამირან ფანცულაიას ქუჩა'); pois.joined_names ('East Point' is also found as 'eastpoint'); attrs accept a list of alternatives. Theatre, cinema, museum, gallery and library get no category words: their names hold the word and a qualifier that the category anchor reads as a place or a street ('რუსთაველის' is a suburb). New categories and brand search words (banks, pharmacies, chains, fast food, electronics). Gate: known queries for the new kinds and count bands."
   ],
   "name_tags": {
     "_note": "name, name:ka, name:en and name:ru get their own columns; every tag here is also searched. Values holding ';' are split.",
@@ -65,7 +66,10 @@
     "street_weight": 0.35
   },
   "pois": {
-    "_note": "The first rule whose 'match' fits wins. match: a list of alternatives, each a set of tag conditions that must all hold ('*' = any value, '!key' = key absent). named: only objects with a name (or brand) are kept. attrs: extra facts the app can filter on. prior: the kind's share of importance. near_km: nearness scale in ranking (default ranking.near_scale_km.pois): how far people drive to one. dedup_m: copies of one kind with the same name (or both unnamed) this close are kept once.",
+    "_note": "The first rule whose 'match' fits wins, so a museum in a castle is a museum and a hotel with a restaurant a hotel. match: a list of alternatives, each a set of tag conditions that must all hold ('*' = any value, '!key' = key absent). named: only objects with a name (or brand) are kept; the kinds without it keep unnamed ones too, which the app folds into one row per kind. attrs: extra facts the app can filter on, each a set of tag conditions or a list of alternatives. prior: the kind's share of importance. near_km: nearness scale in ranking (default ranking.near_scale_km.pois): how far people drive to one. dedup_m: copies of one kind with the same name (or both unnamed) this close are kept once. kind_words: see _kind_words_note. joined_names: see _joined_note.",
+    "_kind_words_note": "People name a POI by its name and its kind ('ამირანი კინო', 'East Point mall', 'Aversi aptiaki'), and the search needs every word in one name. So a named or branded POI whose names do not already hold a word of its rule's kind_words (read as a query would read it: the word itself, its stem, or a longer word it begins, so 'კინოთეატრი' holds 'კინო') gets '<name> <word>' as an extra search name, once for each of its main names that reads differently ('ისთ ფოინთი mall', 'East Point mall'), in the order listed (a later word that an added one already holds is skipped). These names go to alt_names: searched, never shown. A bare kind word then finds every POI of the kind by name ('კინო' lists the cinemas), which is what the kinds without category words rely on. hotel and supermarket have none: their names often start with the word already ('სასტუმრო 444'), and the word on a few thousand more rows would fill the search's candidate window (ranking.candidates) and push out the POI whose own name is the query (the shop 'სუპერი' lost to every 'X supermarket'); their category words cover 'X hotel' near the user.",
+    "joined_names": true,
+    "_joined_note": "A POI name (name, name:ka, name:en, name:ru) of exactly two Latin words, each of at least two letters, is also searchable joined ('East Point' as 'eastpoint', 'City Mall' as 'citymall'): people type brand names without the space. Stored in alt_names like kind_words.",
     "dedup_m": 80,
     "named_weight": 0.08,
     "brand_weight": 0.06,
@@ -106,6 +110,23 @@
         "match": [{"shop": ["car_repair"]}, {"craft": ["car_repair"]}]
       },
       {"kind": "tyres", "group": "driver", "prior": 0.35, "match": [{"shop": ["tyres"]}]},
+      {
+        "kind": "car_parts",
+        "group": "driver",
+        "prior": 0.35,
+        "near_km": 8,
+        "match": [{"shop": ["car_parts"]}],
+        "kind_words": ["ავტონაწილები", "car parts", "автозапчасти"]
+      },
+      {
+        "kind": "car_dealer",
+        "group": "driver",
+        "prior": 0.35,
+        "near_km": 15,
+        "named": true,
+        "match": [{"shop": ["car"]}],
+        "kind_words": ["ავტოსალონი", "car dealer", "автосалон"]
+      },
       {
         "kind": "hospital",
         "group": "driver",
@@ -212,12 +233,84 @@
         "match": [{"natural": ["cave_entrance"]}]
       },
       {
+        "kind": "theatre",
+        "group": "destination",
+        "prior": 0.5,
+        "near_km": 10,
+        "named": true,
+        "match": [{"amenity": ["theatre", "concert_hall"]}],
+        "kind_words": ["თეატრი", "theatre", "theater", "театр"]
+      },
+      {
+        "kind": "cinema",
+        "group": "destination",
+        "prior": 0.45,
+        "near_km": 10,
+        "named": true,
+        "match": [{"amenity": ["cinema"]}],
+        "kind_words": ["კინო", "კინოთეატრი", "cinema", "кинотеатр"]
+      },
+      {
+        "kind": "museum",
+        "group": "destination",
+        "prior": 0.55,
+        "near_km": 15,
+        "named": true,
+        "match": [{"tourism": ["museum"]}],
+        "kind_words": ["მუზეუმი", "museum", "музей"]
+      },
+      {
+        "kind": "gallery",
+        "group": "destination",
+        "prior": 0.4,
+        "near_km": 10,
+        "named": true,
+        "match": [{"tourism": ["gallery"]}],
+        "kind_words": ["გალერეა", "gallery", "галерея"]
+      },
+      {
+        "kind": "library",
+        "group": "destination",
+        "prior": 0.4,
+        "near_km": 8,
+        "named": true,
+        "match": [{"amenity": ["library"]}],
+        "kind_words": ["ბიბლიოთეკა", "library", "библиотека"]
+      },
+      {
+        "kind": "zoo",
+        "group": "destination",
+        "prior": 0.55,
+        "near_km": 30,
+        "named": true,
+        "match": [{"tourism": ["zoo"]}],
+        "kind_words": ["ზოოპარკი", "zoo", "зоопарк"]
+      },
+      {
+        "kind": "theme_park",
+        "group": "destination",
+        "prior": 0.5,
+        "near_km": 30,
+        "named": true,
+        "match": [{"tourism": ["theme_park"]}, {"leisure": ["water_park"]}],
+        "attrs": {"water_park": {"leisure": ["water_park"]}}
+      },
+      {
+        "kind": "viewpoint",
+        "group": "destination",
+        "prior": 0.45,
+        "near_km": 25,
+        "named": true,
+        "match": [{"tourism": ["viewpoint"]}],
+        "kind_words": ["გადასახედი", "viewpoint", "смотровая площадка"]
+      },
+      {
         "kind": "attraction",
         "group": "destination",
         "prior": 0.55,
         "near_km": 15,
         "named": true,
-        "match": [{"tourism": ["attraction", "museum", "viewpoint", "zoo", "theme_park", "aquarium", "gallery"]}]
+        "match": [{"tourism": ["attraction", "aquarium"]}]
       },
       {
         "kind": "historic",
@@ -245,7 +338,7 @@
         "prior": 0.45,
         "near_km": 8,
         "named": true,
-        "match": [{"leisure": ["park", "garden", "water_park"]}]
+        "match": [{"leisure": ["park", "garden"]}]
       },
       {
         "kind": "stadium",
@@ -256,19 +349,37 @@
         "match": [{"leisure": ["stadium"]}]
       },
       {
+        "kind": "sports_centre",
+        "group": "destination",
+        "prior": 0.35,
+        "near_km": 6,
+        "named": true,
+        "match": [
+          {"leisure": ["sports_centre", "fitness_centre", "sports_hall", "ice_rink"]},
+          {"leisure": ["swimming_pool"], "!access": ["*"]},
+          {"leisure": ["swimming_pool"], "access": ["yes", "public", "permissive", "customers"]}
+        ],
+        "attrs": {
+          "fitness": [{"leisure": ["fitness_centre"]}, {"sport": ["fitness"]}],
+          "pool": [{"leisure": ["swimming_pool"]}, {"sport": ["swimming"]}]
+        }
+      },
+      {
         "kind": "mall",
         "group": "destination",
         "prior": 0.55,
         "near_km": 10,
         "named": true,
-        "match": [{"shop": ["mall", "department_store"]}]
+        "match": [{"shop": ["mall", "department_store"]}],
+        "kind_words": ["მოლი", "mall", "молл"]
       },
       {
         "kind": "supermarket",
         "group": "destination",
         "prior": 0.35,
         "named": true,
-        "match": [{"shop": ["supermarket"]}]
+        "match": [{"shop": ["supermarket"]}, {"shop": ["convenience", "grocery"]}],
+        "attrs": {"convenience": {"shop": ["convenience", "grocery"]}}
       },
       {
         "kind": "marketplace",
@@ -287,6 +398,22 @@
         "match": [{"amenity": ["university", "college"]}]
       },
       {
+        "kind": "school",
+        "group": "destination",
+        "prior": 0.3,
+        "named": true,
+        "match": [{"amenity": ["school"]}],
+        "kind_words": ["სკოლა", "school", "школа"]
+      },
+      {
+        "kind": "kindergarten",
+        "group": "destination",
+        "prior": 0.25,
+        "named": true,
+        "match": [{"amenity": ["kindergarten"]}],
+        "kind_words": ["საბავშვო ბაღი", "kindergarten", "детский сад"]
+      },
+      {
         "kind": "embassy",
         "group": "destination",
         "prior": 0.45,
@@ -295,11 +422,141 @@
         "match": [{"office": ["diplomatic"]}, {"amenity": ["embassy"]}]
       },
       {
+        "kind": "public_service",
+        "group": "destination",
+        "prior": 0.5,
+        "named": true,
+        "match": [
+          {"office": ["government"], "government": ["public_service"]},
+          {"office": ["government"], "operator": ["სსიპ იუსტიციის სახლი", "იუსტიციის სახლი", "Public Service Hall"]}
+        ]
+      },
+      {
+        "kind": "government",
+        "group": "destination",
+        "prior": 0.4,
+        "near_km": 8,
+        "named": true,
+        "match": [{"office": ["government"]}, {"amenity": ["townhall", "courthouse"]}],
+        "attrs": {"townhall": {"amenity": ["townhall"]}, "court": {"amenity": ["courthouse"]}}
+      },
+      {
+        "kind": "post_office",
+        "group": "destination",
+        "prior": 0.35,
+        "near_km": 5,
+        "named": true,
+        "match": [{"amenity": ["post_office"]}],
+        "kind_words": ["ფოსტა", "post office", "почта"]
+      },
+      {
+        "kind": "pharmacy",
+        "group": "destination",
+        "prior": 0.35,
+        "match": [{"amenity": ["pharmacy"]}, {"healthcare": ["pharmacy"], "!amenity": ["*"]}],
+        "kind_words": ["აფთიაქი", "pharmacy", "аптека"]
+      },
+      {
+        "kind": "bank",
+        "group": "destination",
+        "prior": 0.35,
+        "named": true,
+        "match": [{"amenity": ["bank"]}],
+        "attrs": {"atm": {"atm": ["yes"]}},
+        "kind_words": ["ბანკი", "bank", "банк"]
+      },
+      {
+        "kind": "atm",
+        "group": "destination",
+        "prior": 0.3,
+        "near_km": 3,
+        "match": [{"amenity": ["atm"]}],
+        "kind_words": ["ბანკომატი", "atm", "банкомат"]
+      },
+      {
         "kind": "hotel",
         "group": "destination",
         "prior": 0.3,
         "named": true,
         "match": [{"tourism": ["hotel", "motel", "guest_house", "hostel"]}]
+      },
+      {
+        "kind": "restaurant",
+        "group": "destination",
+        "prior": 0.3,
+        "near_km": 5,
+        "named": true,
+        "match": [{"amenity": ["restaurant", "food_court"]}],
+        "kind_words": ["რესტორანი", "restaurant", "ресторан"]
+      },
+      {
+        "kind": "fast_food",
+        "group": "destination",
+        "prior": 0.28,
+        "named": true,
+        "match": [{"amenity": ["fast_food"]}]
+      },
+      {
+        "kind": "cafe",
+        "group": "destination",
+        "prior": 0.28,
+        "named": true,
+        "match": [{"amenity": ["cafe", "ice_cream"]}],
+        "kind_words": ["კაფე", "cafe", "кафе"]
+      },
+      {
+        "kind": "bar",
+        "group": "destination",
+        "prior": 0.28,
+        "named": true,
+        "match": [{"amenity": ["bar", "pub", "biergarten"]}],
+        "kind_words": ["ბარი", "bar"]
+      },
+      {
+        "kind": "nightclub",
+        "group": "destination",
+        "prior": 0.3,
+        "near_km": 8,
+        "named": true,
+        "match": [{"amenity": ["nightclub"]}],
+        "kind_words": ["კლუბი", "club", "клуб"]
+      },
+      {
+        "kind": "shop",
+        "group": "destination",
+        "prior": 0.25,
+        "near_km": 5,
+        "named": true,
+        "match": [
+          {
+            "shop": [
+              "clothes", "shoes", "boutique", "fashion_accessories", "bag", "jewelry", "watches", "electronics",
+              "mobile_phone", "computer", "appliance", "hifi", "hardware", "doityourself", "paint", "doors", "tiles",
+              "bathroom_furnishing", "trade", "garden_centre", "furniture", "interior_decoration", "lighting",
+              "kitchen", "bed", "houseware", "carpet", "curtain", "bakery", "pastry", "confectionery", "butcher",
+              "greengrocer", "deli", "seafood", "cheese", "dairy", "tea", "coffee", "beverages", "alcohol", "wine",
+              "cosmetics", "perfumery", "chemist", "books", "stationery", "toys", "baby_goods", "sports", "outdoor",
+              "bicycle", "fishing", "hunting", "pet", "florist", "gift", "variety_store", "second_hand", "optician",
+              "music", "musical_instrument", "photo", "art", "antiques", "medical_supply"
+            ]
+          }
+        ],
+        "attrs": {
+          "clothes": {"shop": ["clothes", "shoes", "boutique", "fashion_accessories", "bag"]},
+          "electronics": {"shop": ["electronics", "mobile_phone", "computer", "appliance", "hifi"]},
+          "hardware": {"shop": ["hardware", "doityourself", "paint", "doors", "tiles", "bathroom_furnishing", "trade"]},
+          "furniture": {"shop": ["furniture", "interior_decoration", "lighting", "kitchen", "bed", "houseware", "carpet"]},
+          "bakery": {"shop": ["bakery", "pastry", "confectionery"]},
+          "wine": {"shop": ["alcohol", "wine"]},
+          "cosmetics": {"shop": ["cosmetics", "perfumery", "chemist"]},
+          "books": {"shop": ["books", "stationery"]},
+          "toys": {"shop": ["toys", "baby_goods"]},
+          "sports": {"shop": ["sports", "outdoor", "bicycle", "fishing", "hunting"]},
+          "pets": {"shop": ["pet"]},
+          "flowers": {"shop": ["florist"]},
+          "optician": {"shop": ["optician"]}
+        },
+        "kind_words": ["მაღაზია", "shop", "магазин"]
       },
       {
         "kind": "resort",
@@ -325,7 +582,40 @@
     "Ekopetrol": ["ეკოპეტროლი", "экопетрол"],
     "Neogas": ["ნეოგაზი", "неогаз"],
     "Gama": ["გამა", "гама"],
-    "Rosneft": ["როსნეფტი", "роснефть"]
+    "Rosneft": ["როსნეფტი", "роснефть"],
+    "_v4_note": "From config v4: banks, pharmacies, grocery chains, fast food, electronics, the post and a cinema chain, the brands with the most OSM objects in legal Georgia on 2026-09-26. The Georgian form is listed too, because many of these objects carry only brand (Georgian) without brand:en.",
+    "Bank of Georgia": ["საქართველოს ბანკი", "BoG", "Банк Грузии"],
+    "TBC Bank": ["თიბისი ბანკი", "TBC", "თიბისი", "ТБС Банк"],
+    "Liberty": ["ლიბერთი", "Liberty Bank", "ლიბერთი ბანკი", "Либерти"],
+    "Credo Bank": ["კრედო ბანკი", "Credo", "კრედო", "Кредо"],
+    "BasisBank": ["ბაზისბანკი", "Basis Bank", "Базисбанк"],
+    "Terabank": ["ტერაბანკი", "Терабанк"],
+    "Cartu Bank": ["ბანკი ქართუ", "ქართუ", "Карту Банк"],
+    "ProCredit Bank": ["პროკრედიტ ბანკი", "ProCredit", "პროკრედიტი", "Прокредит"],
+    "Pharmadepot": ["ფარმადეპო", "Фармадепо"],
+    "Aversi": ["ავერსი", "Аверси"],
+    "PSP": ["პსპ", "ფსპ", "ПСП"],
+    "GPC": ["ჯპს", "ჯიპისი", "ДжиПиСи"],
+    "Impex": ["იმპექსი", "Импекс"],
+    "Pharmhouse": ["ფარმსახლი", "Фармхаус"],
+    "Ori Nabiji": ["ორი ნაბიჯი", "2 ნაბიჯი", "Два шага"],
+    "Nikora": ["ნიკორა", "Никора"],
+    "Libre": ["ლიბრე", "Либре"],
+    "Spar": ["სპარი", "Спар"],
+    "Carrefour": ["კარფური", "Карфур"],
+    "Europroduct": ["ევროპროდუქტი", "Европродукт"],
+    "Goodwill": ["გუდვილი", "Гудвил", "Гудвилл"],
+    "McDonald's": ["მაკდონალდსი", "Макдональдс", "Макдак"],
+    "KFC": ["კეი ეფ სი", "კეიეფსი", "КФС"],
+    "Dunkin' Donuts": ["დანკინ დონათსი", "Dunkin", "დანკინი", "Данкин"],
+    "Subway": ["საბვეი", "Сабвей"],
+    "Wendy's": ["ვენდი'ს", "ვენდისი", "Вендис"],
+    "Zoommer": ["ზუმერი", "Zoomer", "Зумер"],
+    "Elit Electronics": ["ელიტ ელექტრონიქსი", "ელიტი", "Элит Электроникс"],
+    "Megatechnica": ["მეგატექნიკა", "Мегатехника"],
+    "Alta": ["ალტა", "Альта"],
+    "Georgian Post": ["საქართველოს ფოსტა", "Почта Грузии"],
+    "Cavea": ["კავეა", "Кавеа"]
   },
   "categories": {
     "_note": "Words that mean a kind of place rather than a name. A query made of them (with or without a place name, 'parking vake') lists the nearest of that kind. attr narrows to POIs carrying that attrs value. A word matches exactly, or by the same stem ('hotels', 'აეროპორტამდე'), or, as the last word of the query, as the start of a longer category word ('parki' -> parking); not_prefix lists finished words that must never count as such a start.",
@@ -406,7 +696,99 @@
     "mall": {
       "kind": "mall",
       "words": ["მოლი", "სავაჭრო ცენტრი", "mall", "shopping mall", "shopping centre", "торговый центр", "молл"]
-    }
+    },
+    "_new_note": "From config v4. Words for kinds people ask for as 'the nearest one'. Kept out on purpose: theatre, cinema, museum, gallery and library (see the v4 changelog; kind_words find them by name), and public_service ('სახლი' in 'იუსტიციის სახლი' is a noise word, so the phrase could never match; the name finds it). No bare word here may be the start of a common name word ('ტექნიკა' would read 'ტექნიკური უნივერსიტეტი' as electronics; 'ღვინო' would read 'ღვინის მუზეუმი' as a wine shop), and no phrase may hold a noise word (fold noise_words), which the query drops. government has none either ('მერია' is also a village, and 'გამგეობა' would read the 'გამ' of Gamsakhurdia still being typed). The not_prefix lists keep what a word still being typed read before v4: 'par' parking (not pharmacy), 'ელე' and 'ელექტრო' charging, 'საც' and 'ზაპ' fuel, and keep 'view', 'aqua', 'sport' and 'bak' (Bakuriani) from reading as a category; checked by reading every place, street and POI name of the 2026-09-25 database, whole and as its first word typed letter by letter, under v3 and v4.",
+    "car_parts": {
+      "kind": "car_parts",
+      "words": [
+        "ავტონაწილები", "ავტო ნაწილები", "მანქანის ნაწილები", "car parts", "auto parts", "spare parts", "автозапчасти",
+        "запчасти"
+      ],
+      "not_prefix": ["зап"]
+    },
+    "car_dealer": {"kind": "car_dealer", "words": ["ავტოსალონი", "car dealer", "car dealership", "автосалон"]},
+    "zoo": {"kind": "zoo", "words": ["ზოოპარკი", "zoo", "зоопарк"]},
+    "theme_park": {
+      "kind": "theme_park",
+      "words": [
+        "გასართობი პარკი", "ატრაქციონები", "amusement park", "theme park", "парк развлечений", "аттракционы"
+      ]
+    },
+    "water_park": {
+      "kind": "theme_park",
+      "attr": "water_park",
+      "words": ["აკვაპარკი", "aquapark", "water park", "аквапарк"],
+      "not_prefix": ["aqua"]
+    },
+    "viewpoint": {"kind": "viewpoint", "words": ["გადასახედი", "viewpoint", "смотровая площадка"], "not_prefix": ["view"]},
+    "sports_centre": {
+      "kind": "sports_centre",
+      "words": ["სპორტული ცენტრი", "სპორტული კომპლექსი", "sports centre", "sports center", "спорткомплекс"]
+    },
+    "fitness": {
+      "kind": "sports_centre",
+      "attr": "fitness",
+      "words": ["ფიტნესი", "ფიტნეს კლუბი", "gym", "fitness", "фитнес", "спортзал", "тренажерный зал"],
+      "not_prefix": ["sport"]
+    },
+    "pool": {
+      "kind": "sports_centre",
+      "attr": "pool",
+      "words": ["საცურაო აუზი", "swimming pool", "бассейн"]
+    },
+    "school": {"kind": "school", "words": ["სკოლა", "საჯარო სკოლა", "კერძო სკოლა", "school", "школа"]},
+    "kindergarten": {
+      "kind": "kindergarten",
+      "words": ["საბავშვო ბაღი", "ბაგა-ბაღი", "kindergarten", "детский сад", "детсад"]
+    },
+    "post_office": {"kind": "post_office", "words": ["ფოსტა", "საფოსტო განყოფილება", "post office", "почта"]},
+    "pharmacy": {
+      "kind": "pharmacy",
+      "words": ["აფთიაქი", "pharmacy", "drugstore", "aptiaki", "аптека", "apteka"],
+      "not_prefix": ["par", "farm"]
+    },
+    "bank": {"kind": "bank", "words": ["ბანკი", "bank", "банк"]},
+    "atm": {"kind": "atm", "words": ["ბანკომატი", "atm", "cash machine", "bankomat", "банкомат"]},
+    "restaurant": {"kind": "restaurant", "words": ["რესტორანი", "restaurant", "restorani", "ресторан"]},
+    "fast_food": {"kind": "fast_food", "words": ["სწრაფი კვება", "fast food", "фаст фуд"]},
+    "cafe": {"kind": "cafe", "words": ["კაფე", "cafe", "coffee", "coffee shop", "кафе", "кофейня"]},
+    "bar": {"kind": "bar", "words": ["bar", "pub", "бар", "паб"]},
+    "nightclub": {"kind": "nightclub", "words": ["ღამის კლუბი", "nightclub", "night club", "ночной клуб"]},
+    "shop": {"kind": "shop", "words": ["მაღაზია", "shop", "магазин"]},
+    "clothes": {
+      "kind": "shop",
+      "attr": "clothes",
+      "words": ["ტანსაცმელი", "ტანსაცმლის მაღაზია", "clothes", "clothing", "clothes shop", "одежда", "магазин одежды"]
+    },
+    "electronics": {
+      "kind": "shop",
+      "attr": "electronics",
+      "words": ["ელექტრონიკა", "ტექნიკის მაღაზია", "electronics", "электроника", "бытовая техника"],
+      "not_prefix": ["ელე", "ელექ", "ელექტ", "ელექტრ", "ელექტრო"]
+    },
+    "hardware": {
+      "kind": "shop",
+      "attr": "hardware",
+      "words": ["სამშენებლო მაღაზია", "სამშენებლო მასალები", "hardware store", "строительный магазин"]
+    },
+    "furniture": {"kind": "shop", "attr": "furniture", "words": ["ავეჯი", "ავეჯის მაღაზია", "furniture", "мебель"]},
+    "bakery": {"kind": "shop", "attr": "bakery", "words": ["საცხობი", "bakery", "пекарня"], "not_prefix": ["bak", "საც"]},
+    "wine": {
+      "kind": "shop",
+      "attr": "wine",
+      "words": ["ღვინის მაღაზია", "wine shop", "liquor store", "винный магазин", "алкомаркет"]
+    },
+    "cosmetics": {"kind": "shop", "attr": "cosmetics", "words": ["კოსმეტიკა", "cosmetics", "косметика"]},
+    "books": {"kind": "shop", "attr": "books", "words": ["წიგნის მაღაზია", "bookstore", "bookshop", "книжный магазин"]},
+    "toys": {"kind": "shop", "attr": "toys", "words": ["სათამაშოების მაღაზია", "toy store", "toys", "игрушки"]},
+    "sports_shop": {"kind": "shop", "attr": "sports", "words": ["სპორტული მაღაზია", "sports shop", "спортивный магазин"]},
+    "pets": {"kind": "shop", "attr": "pets", "words": ["ზოომაღაზია", "pet shop", "зоомагазин"]},
+    "flowers": {
+      "kind": "shop",
+      "attr": "flowers",
+      "words": ["ყვავილების მაღაზია", "florist", "flower shop", "цветочный магазин"]
+    },
+    "optician": {"kind": "shop", "attr": "optician", "words": ["ოპტიკა", "optician", "оптика"]}
   },
   "ranking": {
     "_note": "How the reference search (scripts/geocoder_search.py) orders results; the app should use the same. score = text*w_text + importance*w_importance + nearness*w_near (w_near only when a position is given; the weights are then divided by their sum). text: per required query word the best of exact / same stem / prefix, averaged, times (1 - coverage_weight + coverage_weight * share of the name's words the query covered), plus optional_bonus per street-type word that also matches (street-type and noise words never count in that share); city_bonus is added to the text of a row in a settlement the query names. nearness = 1 / (1 + km / near_scale_km of the table). Then, after that division: streets and addresses add street_class_prior of their road class; occupied places are multiplied by occupied_factor; without a position or settlement, streets and addresses that do not fit like the centre's best rows lose other_settlement_penalty. Last, exact_first holds streets and POIs that only carry the name of an exact place or feature, and rows of the settlement reading, below it.",

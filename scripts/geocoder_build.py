@@ -12,10 +12,13 @@ lost, and writes one SQLite file with four searchable tables:
              streets that exist only as addr:street of addresses
   addresses  addr:housenumber with its street (or addr:place) and settlement
   pois       what drivers need (fuel with CNG/LPG, EV charging, parking, car
-             wash, car repair, tyres, hospital, police, border control) and
-             named destinations (airports, stations, passes, lakes and
-             reservoirs, sights, hotels, resorts, malls ...), per
-             config/geocoder.json
+             wash, car repair, tyres, car parts, hospital, police, border
+             control), everyday places (pharmacies, ATMs, banks, post
+             offices, schools, shops, cafes, restaurants ...) and named
+             destinations (airports, stations, passes, lakes and reservoirs,
+             theatres, museums, cinemas, sights, hotels, resorts, malls ...),
+             per config/geocoder.json; a POI whose name lacks its kind's word
+             is also searchable as '<name> <word>' (kind_words)
 
 Each table has an FTS5 (or FTS4, --fts fts4) index over folded search keys
 (scripts/geocoder_fold.py), and each row id is its rank by importance, so
@@ -52,6 +55,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import sqlite3
 import sys
 import time
@@ -70,6 +74,7 @@ M_PER_DEG = math.pi * EARTH_R / 180.0          # metres per degree of latitude
 CLIP_PIECE_ID = 4_000_000_000                   # clip.py gives cut pieces ids from here
 ODBL_URL = "https://opendatacommons.org/licenses/odbl/1-0/"
 COPYRIGHT_URL = "https://www.openstreetmap.org/copyright"
+LATIN_WORD = re.compile(r"[A-Za-z]{2,}")         # pois.joined_names: 'East Point' -> 'EastPoint'
 NOTICE = ("Contains information from OpenStreetMap, which is made available here under the "
           "Open Database License (ODbL 1.0). © OpenStreetMap contributors. This search database "
           "is a Derivative Database of OpenStreetMap and is itself available under the ODbL 1.0.")
@@ -422,6 +427,13 @@ def load_config(path=DEFAULT_CONFIG):
             problems.append(f"poi rule {rule.get('kind')!r} has no match")
         if rule.get("group") not in ("driver", "destination"):
             problems.append(f"poi rule {rule.get('kind')!r}: group must be driver or destination")
+        for name, cond in rule.get("attrs", {}).items():
+            conds = cond if isinstance(cond, list) else [cond]
+            if not conds or not all(isinstance(c, dict) and c for c in conds):
+                problems.append(f"poi rule {rule.get('kind')!r}: attr {name!r} needs tag conditions")
+        words = rule.get("kind_words", [])
+        if not isinstance(words, list) or not all(isinstance(w, str) and w.strip() for w in words):
+            problems.append(f"poi rule {rule.get('kind')!r}: kind_words must be a list of words")
         seen.add(rule["kind"])
     for name, cat in config["categories"].items():
         if name.startswith("_"):
@@ -438,7 +450,10 @@ def tag_values(value):
 
 
 def match_tags(tags, condition):
-    """condition: {key: [values]}; '*' = any value; '!key' = key absent."""
+    """condition: {key: [values]}; '*' = any value; '!key' = key absent. A
+    list of such conditions matches when any of them does."""
+    if isinstance(condition, list):
+        return any(match_tags(tags, c) for c in condition)
     for key, values in condition.items():
         if key.startswith("!"):
             if key[1:] in tags:
@@ -1228,6 +1243,12 @@ class Builder:
                        + (cfg["brand_weight"] if best["names"].brand else 0)
                        + (cfg["wikidata_weight"] if tags.get("wikidata") else 0)
                        + (cfg["on_road_bonus"] if on_road else 0))
+                # After the importance: a search name is no name of its own
+                # (a brand-only ATM gets no named_weight for 'X ბანკომატი').
+                extra = self.poi_search_names(rule, best["names"])
+                if extra:
+                    best["names"].alt.extend(extra)
+                    self.stats["poi_search_names"] += len(extra)
                 rows.append({"osm": best["osm"], "kind": kind, "group": rule["group"],
                              "lat": best["lat"], "lon": best["lon"], "names": best["names"],
                              "brand": best["names"].brand[0] if best["names"].brand else None,
@@ -1240,6 +1261,55 @@ class Builder:
                 self.stats[f"poi_{kind}"] += 1
         self.pois = rows
         self.stats["pois"] = len(rows)
+
+    def poi_search_names(self, rule, names):
+        """Extra search names of one POI (stored in alt_names: searched,
+        never shown). kind_words: '<name> <word>' for each word of the rule's
+        kind_words that its names do not already hold as a query would read
+        it (the word, its stem, or a longer word it begins), in the order
+        listed, once per main name that reads differently ('ისთ ფოინთი
+        mall', 'East Point mall'), so 'ამირანი კინო' finds the cinema
+        Amirani. joined_names: a name of two Latin words also joined
+        ('East Point' -> 'EastPoint')."""
+        # Each main name that reads differently ('ისთ ფოინთი', 'East Point'),
+        # or the brand of a POI without a name.
+        bases, seen = [], set()
+        for text in [v for v in names.main.values() if v] or names.brand[:1]:
+            key = self.words(text)
+            if key and key not in seen:
+                seen.add(key)
+                bases.append(text)
+        if not bases:
+            return []
+        have = set()
+        for text in names.all() + names.brand:
+            have.update(self.words(text))
+        extra = []
+        for word in rule.get("kind_words", ()):
+            q = self.fold.parse_query(word)
+            tokens = q.required + q.optional
+            if not tokens or all(self._holds(have, t) for t in tokens):
+                continue
+            for base in bases:
+                extra.append(f"{base} {word}")
+            have.update(self.words(word))
+        if self.config["pois"].get("joined_names"):
+            known = set(names.all())
+            for text in names.main.values():
+                parts = (text or "").split()
+                if len(parts) == 2 and all(LATIN_WORD.fullmatch(p) for p in parts):
+                    joined = "".join(parts)
+                    if joined not in known and self.name_key(joined) not in have:
+                        known.add(joined)
+                        extra.append(joined)
+                        have.update(self.words(joined))
+        return extra
+
+    def _holds(self, keys, token):
+        """A name word (of keys) matches this query token as the search's
+        text score would: the word, its stem, or a longer word it begins."""
+        return any(k in token.keys or (self.fold.name_bases(k) & token.prefix_set)
+                   or any(k.startswith(p) for p in token.prefixes) for k in keys)
 
     # -- search keys --------------------------------------------------------
 
@@ -1342,11 +1412,12 @@ CREATE TABLE addresses (
 CREATE TABLE pois (
   id INTEGER PRIMARY KEY,
   osm TEXT NOT NULL,
-  kind TEXT NOT NULL,               -- fuel charging parking car_wash car_repair tyres hospital police border_control
-                                    -- line_checkpoint (at the occupation line: no border), destinations
+  kind TEXT NOT NULL,               -- config pois.rules[].kind (fuel, parking, pharmacy, theatre ...), or
+                                    -- line_checkpoint (at the occupation line: no border)
   grp TEXT NOT NULL,                -- driver / destination
   lat REAL NOT NULL, lon REAL NOT NULL,
-  name TEXT, name_ka TEXT, name_en TEXT, name_ru TEXT, alt_names TEXT,
+  name TEXT, name_ka TEXT, name_en TEXT, name_ru TEXT,
+  alt_names TEXT,                   -- other names and search-only names (kind_words, joined_names), '|'
   brand TEXT,
   attrs TEXT,                       -- e.g. 'cng;lpg' for fuel, see config pois.rules[].attrs
   city_id INTEGER,

@@ -973,6 +973,337 @@ class RankingRulesTest(unittest.TestCase):
         return self.con.execute(sql, args).fetchall()
 
 
+def poi_collector():
+    """A third made-up country for the POI kinds of config v4, shaped after
+    what the second simulator drive missed ('rustavelis teatri' found only
+    the university next door, 'eastpoint', 'ამირანი კინო', the Public
+    Service Hall), with the traps the category anchor would fall into (a
+    suburb called რუსთაველი, a street of a man called Amiran). Every name
+    and number is made up."""
+    c = gb.Collector(CONFIG)
+    node, way = c.node, c.way
+
+    def line(way_id, tags, *points):
+        way(way_id, tags, list(range(way_id * 10, way_id * 10 + len(points))), [(lon, lat) for lat, lon in points])
+
+    def area(way_id, tags, lat0, lon0, lat1, lon1):
+        refs = [way_id * 10 + i for i in range(4)]
+        way(way_id, tags, refs + refs[:1], box(lon0, lat0, lon1, lat1))
+
+    node(1, {"place": "city", "name": "თბილისი", "name:en": "Tbilisi", "population": "1300000", "capital": "yes"},
+         41.70, 44.30)
+    node(2, {"place": "suburb", "name": "რუსთაველი", "name:en": "Rustaveli"}, 41.74, 44.36)
+    node(3, {"place": "town", "name": "ბათუმი", "name:en": "Batumi", "population": "170000"}, 41.60, 44.90)
+    line(100, {"highway": "primary", "name": "შოთა რუსთაველის გამზირი", "name:en": "Shota Rustaveli Avenue"},
+         (41.700, 44.300), (41.706, 44.306))
+    line(101, {"highway": "residential", "name": "ამირან ფანცულაიას ქუჩა"}, (41.75, 44.40), (41.751, 44.401))
+    line(102, {"highway": "residential", "name": "სკოლის ქუჩა", "name:en": "School Street"},
+         (41.72, 44.33), (41.721, 44.331))
+    # Culture on and near the avenue: the theatre, the opera nearer to the
+    # avenue's middle, the university next door; a cinema whose name lacks
+    # its kind; a museum in a castle, a gallery, a library.
+    c.relation(200, {"type": "multipolygon", "amenity": "theatre", "name": "რუსთაველის თეატრი",
+                     "name:en": "Rustaveli National Theatre", "wikidata": "Q1860439"}, [("w", 201, "outer")])
+    way(201, {}, [2010, 2011, 2012, 2013, 2010], box(44.3012, 41.7008, 44.3016, 41.7011))
+    area(202, {"amenity": "theatre", "name": "ოპერისა და ბალეტის თეატრი", "name:en": "Opera and Ballet Theatre",
+               "wikidata": "Q2596393"}, 41.7030, 44.3030, 41.7033, 44.3033)
+    node(203, {"amenity": "university", "name": "შოთა რუსთაველის თეატრისა და კინოს უნივერსიტეტი",
+               "name:en": "Shota Rustaveli Theatre and Film University"}, 41.7010, 44.3005)
+    node(204, {"amenity": "cinema", "name": "ამირანი", "name:en": "Amirani", "brand": "კავეა"}, 41.708, 44.285)
+    node(205, {"amenity": "cinema", "name": "აპოლო", "name:en": "Apollo"}, 41.702, 44.302)
+    node(206, {"tourism": "museum", "historic": "castle", "name": "საქართველოს ეროვნული მუზეუმი",
+               "name:en": "Georgian National Museum", "wikidata": "Q1386417"}, 41.6960, 44.2990)
+    node(207, {"tourism": "gallery", "name": "ეროვნული გალერეა"}, 41.6990, 44.2980)
+    node(208, {"amenity": "library", "name": "ეროვნული ბიბლიოთეკა"}, 41.6980, 44.2970)
+    node(209, {"tourism": "zoo", "name": "თბილისის ზოოპარკი", "name:en": "Tbilisi Zoo"}, 41.713, 44.277)
+    node(210, {"leisure": "water_park", "name": "ბათუმის აკვაპარკი"}, 41.62, 44.88)
+    node(211, {"tourism": "viewpoint", "name": "მთაწმინდის გადასახედი"}, 41.694, 44.290)
+    node(212, {"tourism": "aquarium", "name": "ბათუმის აკვარიუმი"}, 41.61, 44.89)
+    node(213, {"tourism": "theme_park", "name": "მთაწმინდის პარკი"}, 41.695, 44.289)
+    # Public services and offices.
+    area(220, {"office": "government", "government": "public_service", "name": "იუსტიციის სახლი",
+               "name:en": "Public Service Hall", "operator": "სსიპ იუსტიციის სახლი"}, 41.6988, 44.3060, 41.6992, 44.3066)
+    node(221, {"office": "government", "name": "ვარკეთილის იუსტიციის სახლი", "operator": "სსიპ იუსტიციის სახლი"},
+         41.709, 44.36)
+    node(222, {"office": "government", "name": "საქართველოს იუსტიციის სამინისტრო"}, 41.677, 44.326)
+    node(223, {"amenity": "townhall", "name": "თბილისის მერია"}, 41.704, 44.296)
+    node(224, {"amenity": "post_office", "name": "საქართველოს ფოსტა", "brand": "საქართველოს ფოსტა"}, 41.698, 44.297)
+    node(225, {"amenity": "school", "name": "N51 საჯარო სკოლა"}, 41.721, 44.332)
+    node(226, {"amenity": "school"}, 41.722, 44.334)                                       # unnamed: left out
+    node(227, {"amenity": "kindergarten", "name": "ფიფქია"}, 41.715, 44.320)
+    # Money and medicine: unnamed pharmacies and ATMs stay; two ATMs of one
+    # bank 30 m apart are one row.
+    node(230, {"amenity": "pharmacy", "brand": "ავერსი", "brand:en": "Aversi"}, 41.7005, 44.3040)
+    node(231, {"amenity": "pharmacy"}, 41.7001, 44.3002)
+    node(232, {"healthcare": "pharmacy", "name": "ფარმა"}, 41.71, 44.31)
+    node(233, {"amenity": "bank", "name": "თიბისი ბანკი", "atm": "yes"}, 41.7015, 44.3020)
+    node(234, {"amenity": "bank", "name": "ლიბერთი", "name:en": "Liberty"}, 41.7025, 44.3025)
+    node(235, {"amenity": "atm", "brand": "საქართველოს ბანკი", "brand:en": "Bank of Georgia"}, 41.7003, 44.3003)
+    node(236, {"amenity": "atm", "brand": "საქართველოს ბანკი", "brand:en": "Bank of Georgia"}, 41.70057, 44.3003)
+    node(237, {"amenity": "atm"}, 41.7040, 44.3050)
+    # Food, drink and shops; a hotel with a restaurant stays a hotel.
+    node(240, {"amenity": "restaurant", "name": "ბარბარესთანი", "name:en": "Barbarestan"}, 41.716, 44.303)
+    node(241, {"tourism": "hotel", "amenity": "restaurant", "name": "სასტუმრო ვილა"}, 41.717, 44.304)
+    node(242, {"amenity": "fast_food", "brand": "მაკდონალდსი", "brand:en": "McDonald's"}, 41.7009, 44.3012)
+    node(243, {"amenity": "cafe", "name": "კოფი ლაბი", "name:en": "Coffee Lab"}, 41.706, 44.296)
+    node(244, {"amenity": "cafe"}, 41.7061, 44.2961)                                      # unnamed: left out
+    node(245, {"amenity": "pub", "name": "დაბლინი", "name:en": "Dublin"}, 41.704, 44.292)
+    node(246, {"amenity": "nightclub", "name": "ბასიანი", "name:en": "Bassiani"}, 41.723, 44.787)
+    node(247, {"shop": "electronics", "brand": "ზუმერი", "brand:en": "Zoommer", "name": "ზუმერი"}, 41.7035, 44.3045)
+    node(248, {"shop": "clothes", "name": "ზარა", "name:en": "Zara"}, 41.7045, 44.3055)
+    node(249, {"shop": "books", "name": "ბიბლუსი", "brand": "ბიბლუსი"}, 41.7050, 44.3060)
+    node(250, {"shop": "kiosk", "name": "ჯიხური"}, 41.7052, 44.3062)                     # no shop kind: left out
+    node(251, {"shop": "convenience", "brand": "ორი ნაბიჯი", "brand:en": "Ori Nabiji"}, 41.7055, 44.3065)
+    node(252, {"shop": "supermarket", "name": "კარფური", "name:en": "Carrefour"}, 41.72, 44.31)
+    node(253, {"shop": "car_parts"}, 41.73, 44.32)                                        # unnamed: kept
+    node(254, {"shop": "car", "name": "თეგეტა მოტორსი"}, 41.74, 44.33)
+    area(255, {"shop": "mall", "name": "ისთ ფოინთი", "name:en": "East Point"}, 41.689, 44.398, 41.691, 44.401)
+    node(256, {"leisure": "fitness_centre", "name": "ფიტნეს ჰაუსი"}, 41.7038, 44.3048)
+    node(257, {"leisure": "swimming_pool", "access": "private", "name": "კერძო აუზი"}, 41.71, 44.32)   # private
+    node(258, {"leisure": "swimming_pool", "name": "ლაგუნა ვერე", "sport": "swimming"}, 41.712, 44.29)
+    # Inside the occupied area and its 100 m buffer: nothing but places; in the band: flagged.
+    node(270, {"amenity": "theatre", "name": "ზონის თეატრი"}, 42.30, 44.70)
+    node(271, {"amenity": "cafe", "name": "ზონის კაფე"}, 42.31, 44.71)
+    node(272, {"amenity": "pharmacy"}, 42.32, 44.72)
+    node(273, {"amenity": "atm", "brand": "Сбербанк"}, 42.1995, 44.70)
+    node(274, {"shop": "convenience", "name": "ზონის მარკეტი"}, 42.33, 44.73)
+    node(275, {"amenity": "cafe", "name": "ზოლის კაფე"}, 42.197, 44.70)
+    c.finish_relations()
+    return c
+
+
+class PoiCoverageTest(unittest.TestCase):
+    """Config v4: theatres, museums, cinemas, food, money, medicine,
+    schools, public services and shops are searchable; generic unnamed
+    POIs stay out (or are kept unnamed where the driver kinds do the same);
+    nothing but places inside the occupied area."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.db = Path(cls.tmp.name) / "pois.sqlite"
+        cls.builder = gb.Builder(CONFIG, FOLD, zones(), poi_collector()).build()
+        gb.write_database(cls.db, cls.builder, gb.base_meta(gb.DEFAULT_CONFIG, gb.DEFAULT_FOLD_SPEC, FOLD, CONFIG))
+        cls.con = sqlite3.connect(cls.db)
+        cls.searcher = Searcher(str(cls.db))
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.con.close()
+        cls.searcher.con.close()
+        cls.tmp.cleanup()
+
+    def q(self, sql, *args):
+        return self.con.execute(sql, args).fetchall()
+
+    def top(self, text, near=None):
+        hits = self.searcher.search(text, near=near, limit=5)
+        self.assertTrue(hits, f"nothing for {text!r}")
+        return hits[0]
+
+    def kind_of(self, osm):
+        rows = self.q("SELECT kind FROM pois WHERE osm = ?", osm)
+        return rows[0][0] if rows else None
+
+    def test_each_kind_from_its_tags(self):
+        expected = {
+            "r200": "theatre", "w202": "theatre", "n204": "cinema", "n206": "museum", "n207": "gallery",
+            "n208": "library", "n209": "zoo", "n210": "theme_park", "n211": "viewpoint", "n212": "attraction",
+            "n213": "theme_park", "w220": "public_service", "n222": "government", "n223": "government",
+            "n224": "post_office", "n225": "school", "n227": "kindergarten", "n230": "pharmacy", "n232": "pharmacy",
+            "n233": "bank", "n234": "bank", "n240": "restaurant", "n241": "hotel", "n242": "fast_food",
+            "n243": "cafe", "n245": "bar", "n246": "nightclub", "n247": "shop", "n248": "shop", "n249": "shop",
+            "n251": "supermarket", "n252": "supermarket", "n253": "car_parts", "n254": "car_dealer", "w255": "mall",
+            "n256": "sports_centre", "n258": "sports_centre"}
+        for osm, kind in expected.items():
+            self.assertEqual(self.kind_of(osm), kind, osm)
+        # A museum in a castle is a museum, a hotel with a restaurant a hotel,
+        # an aquarium still an attraction; the Public Service Hall by its operator too.
+        self.assertEqual(self.kind_of("n221"), "public_service")
+        kinds = {r[0] for r in self.q("SELECT kind FROM pois")}
+        self.assertLessEqual(kinds, {r["kind"] for r in CONFIG["pois"]["rules"]} | {"line_checkpoint"})
+
+    def test_unnamed_pois_stay_out_or_are_kept_like_driver_kinds(self):
+        for osm in ("n226", "n244", "n250", "n257"):         # unnamed school and cafe, a kiosk, a private pool
+            self.assertIsNone(self.kind_of(osm), osm)
+        kept = {r[0]: r[1:] for r in self.q("SELECT osm, label_ka, name FROM pois WHERE osm IN ('n231', 'n237', 'n253')")}
+        self.assertEqual(kept, {"n231": (None, None), "n237": (None, None), "n253": (None, None)})
+        keys = self.builder.search_keys()["pois"]
+        for i, p in enumerate(self.builder.pois):             # found by category only, never by name
+            if p["osm"] in ("n231", "n237", "n253"):
+                self.assertEqual(keys[i], [], p["osm"])
+        atms = self.q("SELECT osm, label_ka FROM pois WHERE kind = 'atm' AND brand IS NOT NULL")
+        self.assertEqual(len(atms), 1)                       # two ATMs of one bank, 30 m apart
+        self.assertEqual(atms[0][1], "საქართველოს ბანკი")    # labelled by its brand
+        # Its search name 'საქართველოს ბანკი ბანკომატი' is no name: brand weight only.
+        imp = self.q("SELECT importance FROM pois WHERE kind = 'atm' AND brand IS NOT NULL")[0][0]
+        rule = next(r for r in CONFIG["pois"]["rules"] if r["kind"] == "atm")
+        self.assertAlmostEqual(imp, rule["prior"] + CONFIG["pois"]["brand_weight"], places=4)
+
+    def test_attrs(self):
+        attrs = dict(self.q("SELECT osm, attrs FROM pois WHERE attrs IS NOT NULL"))
+        self.assertEqual(attrs["n233"], "atm")
+        self.assertEqual(attrs["n256"], "fitness")
+        self.assertEqual(attrs["n258"], "pool")             # leisure=swimming_pool or sport=swimming
+        self.assertEqual(attrs["n251"], "convenience")
+        self.assertEqual(attrs["n247"], "electronics")
+        self.assertEqual(attrs["n248"], "clothes")
+        self.assertEqual(attrs["n249"], "books")
+        self.assertEqual(attrs["n223"], "townhall")
+        self.assertEqual(attrs["n210"], "water_park")
+        self.assertNotIn("n252", attrs)                     # a supermarket is no convenience store
+
+    def test_nothing_new_inside_the_occupied_area(self):
+        names = {r[0] for r in self.q("SELECT name FROM pois WHERE name IS NOT NULL")}
+        for name in ("ზონის თეატრი", "ზონის კაფე", "ზონის მარკეტი"):
+            self.assertNotIn(name, names)
+        self.assertEqual(self.builder.stats["pois_dropped_occupied"], 4)
+        self.assertEqual(self.builder.stats["pois_dropped_buffer"], 1)
+        z = zones()
+        for lat, lon in self.q("SELECT lat, lon FROM pois"):
+            self.assertNotIn(z.zone(lat, lon), ("occupied", "buffer", "outside"))
+        self.assertEqual(self.q("SELECT band FROM pois WHERE name = 'ზოლის კაფე'"), [(1,)])
+        self.assertEqual(gg.check_occupied_links(self.con), [])
+
+    def test_theatre_beats_the_university_next_door(self):
+        for near in (TBILISI, None, (41.60, 44.90)):
+            for text in ("რუსთაველის თეატრი", "rustavelis teatri", "Rustaveli Theatre", "რუსთაველის თეატრში"):
+                top = self.top(text, near)
+                self.assertEqual((top["kind"], top["osm"]), ("theatre", "r200"), (text, near))
+        # No category for the bare word: 'რუსთაველის' would anchor it to the suburb.
+        self.assertIsNone(self.searcher.match_category(FOLD.parse_query("რუსთაველის თეატრი").required))
+        self.assertIn(self.top("თეატრი", TBILISI)["kind"], ("theatre",))
+
+    def test_kind_words_find_a_name_said_with_its_kind(self):
+        for text in ("ამირანი კინო", "amirani cinema", "kino amirani", "ამირანი კინოთეატრი", "Амирани кинотеатр"):
+            top = self.top(text, TBILISI)
+            self.assertEqual((top["kind"], top["osm"]), ("cinema", "n204"), text)
+            self.assertNotIn("partial", top, text)
+        self.assertEqual(self.top("ამირანი კინო")["osm"], "n204")          # also far from 'ამირან ფანცულაიას ქუჩა'
+        self.assertEqual(self.top("ლიბერთი ბანკი", TBILISI)["osm"], "n234")
+        self.assertEqual(self.top("East Point mall", TBILISI)["osm"], "w255")
+        self.assertEqual(self.top("ბარბარესთანი რესტორანი", TBILISI)["osm"], "n240")
+        # Only a search name: the label stays the POI's own name.
+        row = self.q("SELECT label_ka, label_en, alt_names FROM pois WHERE osm = 'n204'")[0]
+        self.assertEqual(row[:2], ("ამირანი", "Amirani"))
+        self.assertIn("ამირანი კინო", row[2].split("|"))
+        # A name that holds the word gets no second one ('თეატრი' is in 'რუსთაველის თეატრი').
+        alt = self.q("SELECT alt_names FROM pois WHERE osm = 'r200'")[0][0] or ""
+        self.assertFalse([a for a in alt.split("|") if a.count("თეატრი") > 1 or a.endswith(" театр")], alt)
+        # 'კინო' is held by 'კინოთეატრი': a cinema called so gets no 'კინო'.
+        c = gb.Collector(CONFIG)
+        c.node(1, {"amenity": "cinema", "name": "კინოთეატრი რუსთაველი"}, 41.70, 44.30)
+        b = gb.Builder(CONFIG, FOLD, zones(), c).build()
+        self.assertFalse([a for a in b.pois[0]["names"].alt if a.endswith(" კინო") or a.endswith(" кинотеатр")])
+
+    def test_joined_names(self):
+        for text in ("eastpoint", "EastPoint", "east point"):
+            top = self.top(text, TBILISI)
+            self.assertEqual((top["kind"], top["osm"]), ("mall", "w255"), text)
+        alt = self.q("SELECT alt_names FROM pois WHERE osm = 'w255'")[0][0].split("|")
+        self.assertIn("EastPoint", alt)
+        self.assertNotIn("ისთფოინთი", alt)                                   # Latin names only
+
+    def test_public_service_hall(self):
+        top = self.top("იუსტიციის სახლი", TBILISI)
+        self.assertEqual((top["kind"], top["osm"]), ("public_service", "w220"))
+        hits = self.searcher.search("იუსტიციის სახლი", near=(41.709, 44.36), limit=5)
+        self.assertEqual(hits[0]["osm"], "n221")                              # the one near you
+        self.assertEqual(self.top("public service hall", TBILISI)["osm"], "w220")
+
+    def test_categories_of_the_new_kinds(self):
+        near = TBILISI
+        cases = [("აფთიაქი", "pharmacy", None), ("аптека", "pharmacy", None), ("ბანკომატი", "atm", None),
+                 ("atm", "atm", None), ("ბანკი", "bank", None), ("ფოსტა", "post_office", None),
+                 ("რესტორანი", "restaurant", None), ("კაფე", "cafe", None), ("bar", "bar", None),
+                 ("სწრაფი კვება", "fast_food", None), ("სკოლა", "school", None), ("საბავშვო ბაღი", "kindergarten", None),
+                 ("ფიტნესი", "sports_centre", "fitness"), ("საცურაო აუზი", "sports_centre", "pool"),
+                 ("აკვაპარკი", "theme_park", "water_park"), ("ზოოპარკი", "zoo", None), ("გადასახედი", "viewpoint", None),
+                 ("მაღაზია", "shop", None), ("ელექტრონიკა", "shop", "electronics"), ("წიგნის მაღაზია", "shop", "books"),
+                 ("ავტონაწილები", "car_parts", None), ("ავტოსალონი", "car_dealer", None),
+                 ("მარკეტი", "supermarket", None)]
+        for text, kind, attr in cases:
+            top = self.top(text, near)
+            self.assertEqual((top["kind"], top.get("category") is not None), (kind, True), text)
+            if attr:
+                self.assertIn(attr, (top.get("attrs") or "").split(";"), text)
+        # The unnamed pharmacy 20 m from you is listed for the category.
+        kinds = [h["osm"] for h in self.searcher.search("აფთიაქი", near=(41.7001, 44.3002), limit=5)]
+        self.assertIn("n231", kinds)
+        # A place named beside the word: 'ბათუმის აკვაპარკი' is Batumi's.
+        self.assertEqual(self.top("ბათუმის აკვაპარკი", near)["osm"], "n210")
+        self.assertEqual(self.top("ავერსი აფთიაქი", near)["osm"], "n230")
+        # Brand words (config brands): Russian and Latin forms of a Georgian brand.
+        self.assertEqual(self.top("Аверси", near)["osm"], "n230")
+        self.assertEqual(self.top("bog", near)["kind"], "atm")
+        self.assertEqual(self.top("Макдональдс", near)["kind"], "fast_food")
+
+    def test_new_words_take_no_old_reading(self):
+        s = self.searcher
+
+        def reads(text):
+            got = s.match_category(FOLD.parse_query(text).tokens)
+            return got[0] if got else None
+
+        # What a word still being typed read before v4, it reads now.
+        for text, category in (("par", "parking"), ("პარ", "parking"), ("ელე", "charging"), ("ელექტრო", "charging"),
+                               ("საწ", "fuel"), ("ზაპ", "fuel"), ("პოლ", "police"), ("ავტ", "lpg"),
+                               ("parkin", "parking"), ("პარკი", None), ("park", None)):
+            self.assertEqual(reads(text), category, text)
+        # Names that hold a new category word only as a start or a type are no category.
+        for text in ("Kazbegi View", "Lapuri Pass", "V. Barnov Str.", "ზემო ბარი", "ბარში", "Aqua", "ტექნიკური უნივერსიტეტი",
+                     "ღვინის მუზეუმი", "სპორტის სასახლე", "რუსთაველის თეატრი", "ამირანი კინო", "ეროვნული მუზეუმი",
+                     "იუსტიციის სახლი", "მერი შერვაშიძის", "Stori Bridge", "Road to farm", "სუპერი"):
+            self.assertIsNone(reads(text), text)
+
+    def test_category_config_is_sound(self):
+        seen = {}
+        noise = {k for w in FOLD.spec["noise_words"].values() if isinstance(w, list) for x in w for k in FOLD.keys(x)}
+        for name, cat in CONFIG["categories"].items():
+            if name.startswith("_"):
+                continue
+            for word in cat["words"]:
+                keys = FOLD.keys(word)
+                self.assertTrue(keys, word)
+                # A noise word is dropped from the query, so the phrase could never match.
+                self.assertFalse(set(keys) & noise, f"{name}: {word!r} holds a noise word")
+                phrase = " ".join(keys)
+                target = (cat["kind"], cat.get("attr"))
+                self.assertEqual(seen.setdefault(phrase, target), target, f"{word!r} means two things")
+            for word in cat.get("not_prefix", []):
+                self.assertEqual(len(FOLD.keys(word)), 1, word)
+        for rule in CONFIG["pois"]["rules"]:
+            for word in rule.get("kind_words", []):
+                self.assertTrue(FOLD.parse_query(word).required, word)
+        # A brand word belongs to one brand only: the app builds this index
+        # from an unordered dictionary, so a shared word would pick either.
+        owner = {}
+        for canon, words in CONFIG["brands"].items():
+            if canon.startswith("_"):
+                continue
+            for word in [canon] + words:
+                key = " ".join(FOLD.keys(word))
+                self.assertEqual(owner.setdefault(key, canon), canon, f"{word!r} is in {owner[key]!r} and {canon!r}")
+
+    def test_gate_names_only_known_kinds(self):
+        gate = json.loads(gg.DEFAULT_GATE.read_text(encoding="utf-8"))
+        poi_kinds = {r["kind"] for r in CONFIG["pois"]["rules"]} | {"line_checkpoint"}
+        place_kinds = set(CONFIG["places"]["kinds"])
+        for key in gate["kinds"]:
+            table, kind = key.split(".")
+            self.assertIn(kind, poi_kinds if table == "pois" else place_kinds, key)
+        for case in gate["queries"]:
+            if "kind" in case:
+                tables = case["table"] if isinstance(case["table"], list) else [case["table"]]
+                known = set().union(*[poi_kinds if t == "pois" else place_kinds for t in tables])
+                self.assertIn(case["kind"], known, case["q"])
+            if "attr" in case:
+                rule = next(r for r in CONFIG["pois"]["rules"] if r["kind"] == case["kind"])
+                self.assertIn(case["attr"], rule.get("attrs", {}), case["q"])
+            if isinstance(case.get("near"), str):
+                self.assertIn(case["near"], gate["near"], case["q"])
+
+
 class GateTest(unittest.TestCase):
 
     @classmethod
