@@ -1,0 +1,202 @@
+{
+  "_about": "Settings for the offline Georgia basemap (georgia.pmtiles). Read by scripts/build_basemap.sh and scripts/basemap.py. Bump 'version' whenever anything here changes, and say why in 'changelog'. The owner's decision: full quality (every OpenMapTiles layer, buildings, land cover, land use, water, house numbers and every POI, no lean variant), Georgian and English names only, built from the same safety-clipped extract as the routing tiles.",
+  "version": 2,
+  "changelog": [
+    "1 (2026-09-26): first version. Planetiler 0.10.2 (jar SHA-256 from GitHub's release asset digest, the same value as the planetiler.jar.sha256 file of the release, checked 2026-09-26), bundled planetiler-openmaptiles at commit 91516fdf (OpenMapTiles schema 3.16.0). Source URLs are the ones Planetiler 0.10.2's openmaptiles task uses by default. Spot-check points and thresholds were calibrated on OpenFreeMap's Planetiler-built OpenMapTiles tiles (build 20260913_164504_pt) on 2026-09-26; the size band is a guess until the first green run.",
+    "2 (2026-09-26): licence review. build.archive_description now carries the ODbL notice and URI and the OpenMapTiles CC-BY 4.0 credit inside georgia.pmtiles (ODbL 4.2), and the gate requires it; the gate also requires the linked credits (openmaptiles.org, openstreetmap.org/copyright) in the attribution. The licence note lists what planetiler.jar bundles (LGPL GeoTools and the EPSG data, EDL JTS, ICU); none of it ships."
+  ],
+  "output": "georgia.pmtiles",
+  "planetiler": {
+    "version": "0.10.2",
+    "jar_url": "https://github.com/onthegomap/planetiler/releases/download/v0.10.2/planetiler.jar",
+    "jar_bytes": 93278824,
+    "jar_sha256": "f310bd0413e2e4512b27f4046d418664e8e1d3bf31603c2a70e23de06c167e4d",
+    "planetiler_commit": "0e5588c4a6e8c29a270a33afe8df62027d889604",
+    "openmaptiles_commit": "91516fdf477915b1a985015811049b9b96c7f87e",
+    "openmaptiles_schema": "3.16.0",
+    "java_major": 21,
+    "java_heap": "8g",
+    "_note": "planetiler.jar (Apache-2.0; also bundles LGPL GeoTools shapefile/EPSG-HSQL, which also carries the EPSG dataset terms, EDL JTS, ICU and others per its NOTICE.md at the pinned commit) and planetiler-openmaptiles (BSD-3 code, CC-BY-4.0 schema). CI only, never distributed; the output is data, not a derivative of this code."
+  },
+  "build": {
+    "languages": [
+      "ka",
+      "en"
+    ],
+    "minzoom": 0,
+    "maxzoom": 14,
+    "bounds_margin_deg": 0.1,
+    "archive_name": "Vinari Georgia basemap",
+    "archive_description": "OpenMapTiles 3.16.0 schema for Georgia, names in Georgian and English, built by Planetiler from a safety-clipped OpenStreetMap extract: every road inside the occupied territories (plus 100 m) and outside Georgia is removed. Data © OpenStreetMap contributors, a derivative database under the Open Database License 1.0 (https://opendatacommons.org/licenses/odbl/1-0/); layers follow the OpenMapTiles schema, CC-BY 4.0 (https://openmaptiles.org/).",
+    "_note": "Every OpenMapTiles layer is kept (no --exclude-layers, no --only-layers). --bounds is the bounding box of config/boundaries/georgia_28699.geojson plus bounds_margin_deg on each side, so a wrong or missing PBF header can never turn this into a world build. Wikidata name lookups stay off: every name comes from the OSM extract. archive_description is the PMTiles 'description': it carries the ODbL notice inside the file (ODbL 4.2), which the gate checks. The default --archive-attribution (Planetiler's OpenMapTiles credit with both links) is kept."
+  },
+  "sources": [
+    {
+      "name": "water_polygons",
+      "file": "water-polygons-split-3857.zip",
+      "url": "https://osmdata.openstreetmap.de/download/water-polygons-split-3857.zip",
+      "min_bytes": 700000000,
+      "max_bytes": 1400000000,
+      "sha256": null,
+      "about": "OSM coastline water polygons (sea and ocean), from osmdata.openstreetmap.de",
+      "licence": "ODbL-1.0",
+      "attribution": "© OpenStreetMap contributors",
+      "_note": "Regenerated from OSM every few days, so it cannot be pinned; its SHA-256 and date go into manifest.json. 930,949,645 bytes on 2026-09-26."
+    },
+    {
+      "name": "natural_earth",
+      "file": "natural_earth_vector.sqlite.zip",
+      "url": "https://naciscdn.org/naturalearth/packages/natural_earth_vector.sqlite.zip",
+      "bytes": 434210731,
+      "sha256": null,
+      "about": "Natural Earth 5.1.2 vector data (low zoom land cover, lakes, boundaries, labels)",
+      "licence": "public domain",
+      "attribution": "Made with Natural Earth",
+      "_note": "Unchanged since 2022-05-14 (Last-Modified), so the size is pinned. Set sha256 from the first green run's manifest.json (basemap.sources) to pin it fully."
+    },
+    {
+      "name": "lake_centerlines",
+      "file": "lake_centerline.shp.zip",
+      "url": "https://github.com/acalcutt/osm-lakelines/releases/download/v12/lake_centerline.shp.zip",
+      "bytes": 80906805,
+      "sha256": null,
+      "about": "Lake label lines from osm-lakelines v12 (2022-05-06), derived from OSM lake polygons",
+      "licence": "ODbL-1.0 (data derived from OpenStreetMap; the osm-lakelines code is MIT)",
+      "attribution": "© OpenStreetMap contributors",
+      "_note": "A fixed release file, so the size is pinned. Set sha256 from the first green run's manifest.json (basemap.sources) to pin it fully."
+    }
+  ],
+  "gate": {
+    "min_bytes": 50000000,
+    "max_bytes": 400000000,
+    "_size_note": "OpenFreeMap's Georgia z0-14 slice (every language) measured 140.1 MB on 2026-09-22; with only ka and en it should be smaller. Tighten the band after the first green run. The comparison with the previous release (drop_limit) is the stronger check.",
+    "drop_limit": 0.2,
+    "max_tile_bytes": 1000000,
+    "max_addressed_tiles": 2000000,
+    "min_tiles_at_maxzoom": 15000,
+    "required_layers": [
+      "aerodrome_label",
+      "aeroway",
+      "boundary",
+      "building",
+      "housenumber",
+      "landcover",
+      "landuse",
+      "mountain_peak",
+      "park",
+      "place",
+      "poi",
+      "transportation",
+      "transportation_name",
+      "water",
+      "water_name",
+      "waterway"
+    ],
+    "layers_with_name_ka": [
+      "place",
+      "transportation_name",
+      "poi",
+      "water_name"
+    ],
+    "allowed_name_fields": [
+      "name",
+      "name_en",
+      "name_de",
+      "name_int",
+      "name:latin",
+      "name:nonlatin",
+      "name:ka",
+      "name:en"
+    ],
+    "spot_checks": [
+      {
+        "name": "Tbilisi, Freedom Square",
+        "lat": 41.6934,
+        "lon": 44.8015,
+        "zoom": 14,
+        "min_named_streets": 100,
+        "min_street_ka_share": 0.8,
+        "min_buildings": 800,
+        "min_pois": 1000,
+        "min_pois_with_ka": 400,
+        "min_housenumbers": 80
+      },
+      {
+        "name": "Batumi, old town and seafront",
+        "lat": 41.6517,
+        "lon": 41.636,
+        "zoom": 14,
+        "min_named_streets": 25,
+        "min_street_ka_share": 0.8,
+        "min_buildings": 500,
+        "min_pois": 1000,
+        "min_pois_with_ka": 300,
+        "min_housenumbers": 100,
+        "water_class": "ocean"
+      },
+      {
+        "name": "Kutaisi, centre",
+        "lat": 42.271,
+        "lon": 42.7045,
+        "zoom": 14,
+        "min_named_streets": 60,
+        "min_street_ka_share": 0.8,
+        "min_buildings": 1000,
+        "min_pois": 300,
+        "min_pois_with_ka": 80,
+        "min_housenumbers": 80
+      }
+    ],
+    "city_labels": [
+      {
+        "name": "Tbilisi",
+        "name_ka": "თბილისი",
+        "lat": 41.6934,
+        "lon": 44.8015,
+        "zoom": 8
+      },
+      {
+        "name": "Batumi",
+        "name_ka": "ბათუმი",
+        "lat": 41.6459,
+        "lon": 41.6415,
+        "zoom": 10
+      },
+      {
+        "name": "Kutaisi",
+        "name_ka": "ქუთაისი",
+        "lat": 42.2679,
+        "lon": 42.6946,
+        "zoom": 10
+      }
+    ],
+    "no_go_scan": {
+      "zoom": 14,
+      "hard_margin_m": 5,
+      "country_margin_m": 15,
+      "min_tiles_in_no_go": 1000,
+      "min_buildings_in_no_go": 5000,
+      "road_classes": [
+        "motorway",
+        "trunk",
+        "primary",
+        "secondary",
+        "tertiary",
+        "minor",
+        "service",
+        "track",
+        "path",
+        "raceway",
+        "busway",
+        "bus_guideway",
+        "ferry"
+      ],
+      "allowed_path_subclasses": [
+        "platform"
+      ],
+      "_note": "Every line in the transportation and transportation_name layers whose class is a road class (or any *_construction class) must stay out of the no-go area (occupied areas plus 100 m, less hard_margin_m for tile rounding) and inside Georgia (plus country_margin_m). Railways, aerialways, piers and bridges are not roads and pass the clip, as do railway platforms without a highway tag (class path, subclass platform). Polygons are not checked: a pedestrian square mapped as a multipolygon relation keeps its outline. Place labels, buildings, land use and POIs inside the occupied areas stay on the map on purpose.",
+      "_calibration": "On 2026-09-26 the scan was run on OpenFreeMap's unclipped tiles around Tskhinvali, Sukhumi and Upper Lars: it found 3,158 road lines in the no-go area and 29 on the Russian side, and 12,979 building outlines in just 18 tiles touching the no-go area. Tiles near Gori were skipped as legal."
+    },
+    "_spot_note": "Measured on OpenFreeMap's Planetiler OpenMapTiles tiles on 2026-09-26 (named streets / with Georgian name:ka / building outlines / POIs / POIs with name:ka / house numbers): Tbilisi 14/10230/6100 286/270/3216/4798/1628/269, Batumi 14/10086/6103 68/66/2295/5455/1471/412 (with sea), Kutaisi 14/10135/6065 215/211/4234/1189/339/315. The minimums are about a quarter to a third of that, so normal OSM edits never block a release but a missing layer or language does. Buildings are counted as polygon outlines: Planetiler merges a tile's buildings into a few multipolygon features."
+  }
+}

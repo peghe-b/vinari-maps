@@ -1,15 +1,37 @@
 # Weekly build of the Georgia car-routing tiles for the Vinari navigator.
 #
-# Three jobs:
+# Jobs:
 # - boundaries: compares the frozen no-go polygons with live OSM. It fails
 #   (so GitHub emails the owner) when a line moved, and never blocks the
 #   build or the release, which keep using the frozen copies.
 # - build (read-only token): download and verify the OSM extract, run the
 #   safety clip, build the tiles, start Valhalla on the new tiles and run
-#   the safety gate, write the manifest, and hand the tested files on.
-# - publish (the only job that can write): checks the handed-on tar against
-#   the manifest and creates the GitHub Release. It runs only when build
-#   passed, and only on the default branch.
+#   the safety gate, write the manifest (the tar and the zones), and hand
+#   the tested files on. It waits for no other job.
+# - glyphs-sprites (read-only token): builds the MapLibre label glyphs
+#   (Noto Sans Georgian + Noto Sans, OFL) and the driving icon sprite sheet
+#   (Maki/Temaki glyphs, CC0; badge designs MIT), gates each zip and hands
+#   them on. It reads no OSM data and runs beside build, so a failure here
+#   never hides the result of the routing, map or search gates.
+# - basemap (read-only token): after build passed, draws the offline map
+#   georgia.pmtiles with Planetiler from build's clipped extract (the one
+#   the Valhalla gate passed), gates it and hands it on.
+# - geocoder (read-only token): after build passed, builds the offline
+#   search database georgia_geocoder.sqlite.gz from the same clipped
+#   extract (places in the occupied areas kept with occupied=1, nothing
+#   else there), gates it with known queries and hands it on.
+# - release-manifest (read-only token): adds glyphs.zip, sprites.zip,
+#   georgia.pmtiles and georgia_geocoder.sqlite.gz to build's manifest with
+#   manifest.py --extend, which checks each report (passed, same bytes, and
+#   for the map and the search database the same extract, clip config and
+#   commit) and writes the credits and the map attribution.
+# - publish (the only job that can write): checks that the final manifest
+#   keeps everything build wrote, lists exactly the six release files (plus
+#   manifest.json itself) and carries the credits, checks every file
+#   against it, uploads exactly the files it lists, and creates the
+#   GitHub Release. It runs only when build, glyphs-sprites, basemap,
+#   geocoder and release-manifest all passed, and only on the default
+#   branch (boundaries never blocks it).
 #
 # Runs on GitHub's free runners (this repo is public). Nothing here needs a
 # secret: the release uses the built-in GITHUB_TOKEN.
@@ -199,6 +221,7 @@ jobs:
             --tar build/valhalla/valhalla_tiles.tar --zones build/nogo_zones.geojson \
             --clip-report build/clip_report.json --gate build/gate_results.json \
             --valhalla-config build/valhalla/valhalla.json --out build/manifest.json \
+            --clipped-pbf build/valhalla/georgia-clipped.osm.pbf \
             "${previous[@]}"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
@@ -211,6 +234,32 @@ jobs:
             build/manifest.json
             build/nogo_zones.geojson
           retention-days: 3
+          if-no-files-found: error
+
+      # The same manifest and zones without the tar, for the jobs that only
+      # read them (geocoder, release-manifest).
+      - name: Hand the manifest and zones on
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: build-manifest
+          path: |
+            build/manifest.json
+            build/nogo_zones.geojson
+          retention-days: 3
+          if-no-files-found: error
+
+      # Only reached when the safety gate passed and the manifest (which
+      # records this file's SHA-256) was written, so the map and the search
+      # database are made from exactly the extract the routing tiles were
+      # tested on. Kept as long as the other hand-ons, so "Re-run failed
+      # jobs" still works on the next day.
+      - name: Hand the clipped extract to the basemap and geocoder jobs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: clipped-extract
+          path: build/valhalla/georgia-clipped.osm.pbf
+          retention-days: 3
+          compression-level: 0   # a PBF is already compressed
           if-no-files-found: error
 
       - name: Keep reports and logs (14 days)
@@ -227,7 +276,7 @@ jobs:
           if-no-files-found: ignore
 
   publish:
-    needs: build
+    needs: [build, glyphs-sprites, basemap, geocoder, release-manifest]
     # Scheduled runs always use the default branch. A manual run on any
     # other branch builds and gates, but never releases.
     if: github.event_name == 'schedule' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
@@ -242,17 +291,94 @@ jobs:
           name: release-files
           path: out
 
-      - name: Check the files against the manifest
+      - name: Fetch the final manifest (release-manifest job)
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: release-manifest
+          path: final
+
+      - name: Fetch the glyphs and sprites
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: glyphs-sprites
+          path: out/glyphs-sprites
+
+      - name: Fetch the basemap
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: basemap
+          path: out/basemap
+
+      - name: Fetch the geocoder
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: geocoder
+          path: out/geocoder
+
+      - name: Use the final manifest (build's, plus the files added after it)
         run: |
-          for pair in "0 out/valhalla/valhalla_tiles.tar" "1 out/nogo_zones.geojson"; do
-            set -- $pair
-            expected=$(jq -r ".files[$1].sha256" out/manifest.json)
-            actual=$(sha256sum "$2" | cut -d' ' -f1)
-            if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
-              echo "::error::$2: sha256 $actual, manifest says '$expected'"; exit 1
+          # Every key build wrote must be unchanged and its files must come
+          # first, in the same order; the final one may only add to it.
+          if ! jq -e --slurpfile b out/manifest.json '. as $f | $b[0] as $base
+                | ($base | to_entries | map(select(.key != "files")) | all(.value == $f[.key]))
+                  and ($f.files[0:($base.files | length)] == $base.files)' final/manifest.json > /dev/null; then
+            echo "::error::the final manifest changes what build wrote"; exit 1
+          fi
+          # Exactly the release files, no more and no fewer.
+          if ! jq -e '[.files[].name] | sort == ["georgia.pmtiles", "georgia_geocoder.sqlite.gz", "glyphs.zip",
+                                                 "nogo_zones.geojson", "sprites.zip", "valhalla_tiles.tar"]' \
+                 final/manifest.json > /dev/null; then
+            echo "::error::the final manifest lists $(jq -c '[.files[].name]' final/manifest.json), not the six release files"
+            exit 1
+          fi
+          # Every part passed its gate, and the credits the app must show are there.
+          for section in glyphs sprites basemap geocoder; do
+            if [ "$(jq -r --arg s "$section" '.[$s].gate.passed' final/manifest.json)" != "true" ]; then
+              echo "::error::the manifest does not record a passed $section gate"; exit 1
             fi
           done
-          echo "tar and zones match the manifest"
+          if ! jq -e '. as $m
+                | ($m.map_attribution.text | test("OpenMapTiles")) and ($m.map_attribution.text | test("OpenStreetMap"))
+                  and (([$m.map_attribution.links[].url] | index("https://openmaptiles.org/")) != null)
+                  and (([$m.credits[].licence] | index("OFL-1.1")) != null)
+                  and (([$m.credits[].files[]] | sort) == ([$m.files[].name] | sort))' final/manifest.json > /dev/null; then
+            echo "::error::the final manifest lacks the map attribution or a credit for every file"; exit 1
+          fi
+          cp final/manifest.json out/manifest.json
+          echo "final manifest: $(jq -r '[.files[].name] | join(", ")' out/manifest.json)"
+
+      - name: Check every file against the manifest
+        run: |
+          # Where each file was handed on. The manifest decides the list, so
+          # a file it names that this job lacks stops the release, and the
+          # upload below takes exactly the manifest's files.
+          where() {
+            case "$1" in
+              valhalla_tiles.tar) echo out/valhalla/valhalla_tiles.tar ;;
+              nogo_zones.geojson) echo out/nogo_zones.geojson ;;
+              glyphs.zip | sprites.zip) echo "out/glyphs-sprites/$1" ;;
+              georgia.pmtiles) echo out/basemap/georgia.pmtiles ;;
+              georgia_geocoder.sqlite.gz) echo out/geocoder/georgia_geocoder.sqlite.gz ;;
+            esac
+          }
+          jq -r '.files[] | [.name, .sha256] | @tsv' out/manifest.json > files.tsv
+          : > release_files.txt
+          while IFS=$'\t' read -r name expected; do
+            path=$(where "$name")
+            if [ -z "$path" ] || [ ! -f "$path" ]; then
+              echo "::error::the manifest lists $name, but this job was not handed that file"; exit 1
+            fi
+            actual=$(sha256sum "$path" | cut -d' ' -f1)
+            if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
+              echo "::error::$name: sha256 $actual, manifest says '$expected'"; exit 1
+            fi
+            echo "$path" >> release_files.txt
+            echo "ok  $name"
+          done < files.tsv
+          echo out/manifest.json >> release_files.txt
+          if [ "$(wc -l < release_files.txt)" -ne $(( $(jq '.files | length' out/manifest.json) + 1 )) ]; then
+            echo "::error::not every file of the manifest was checked"; exit 1
+          fi
 
       - name: Publish release
         env:
@@ -263,10 +389,14 @@ jobs:
           if ! [[ "$RELEASE_TAG" =~ $TAG_PATTERN ]]; then
             echo "::error::bad release tag '$RELEASE_TAG'"; exit 1
           fi
+          # Every file in the manifest, plus manifest.json itself.
+          files=()
+          while IFS= read -r f; do files+=("$f"); done < release_files.txt
+          assets=${#files[@]}
           # The tag holds the OSM time and the commit, so an existing complete
           # release means the very same data and code: nothing to do.
           state=$(gh release view "$RELEASE_TAG" --json isDraft,assets \
-                    -q '(.isDraft|not) and (.assets|length)==3' 2> /dev/null || true)
+                    -q "(.isDraft|not) and (.assets|length)==$assets" 2> /dev/null || true)
           if [ "$state" = "true" ]; then
             echo "::notice::release $RELEASE_TAG already exists and is complete; nothing to publish"
             exit 0
@@ -277,14 +407,465 @@ jobs:
             gh api -X DELETE "repos/$GH_REPO/git/refs/tags/$RELEASE_TAG" > /dev/null 2>&1 || true
           fi
           {
-            echo "Georgia car-routing tiles for Valhalla $VALHALLA_VERSION, OSM data as of $(jq -r .osm.timestamp out/manifest.json)."
+            echo "Georgia car-routing tiles for Valhalla $VALHALLA_VERSION, OSM data as of $(jq -r .osm.timestamp out/manifest.json), with the offline map and the offline search database made from the same safety-clipped extract."
             echo
             echo "Safety clip v$(jq -r .clip.config_version out/manifest.json) applied; safety gate: $(jq -r '"\(.gate.checks - .gate.failed)/\(.gate.checks)"' out/manifest.json) checks passed."
-            echo "Check the tar against the sha256 in manifest.json before use."
+            echo "Check every file against its sha256 in manifest.json before use. manifest.json also holds the credits for every file (credits) and the credit the map must always show (map_attribution)."
             echo
             echo "Contains information from OpenStreetMap (© OpenStreetMap contributors, https://www.openstreetmap.org/copyright) and from timezone-boundary-builder 2025b, both made available under the Open Database License (ODbL 1.0): https://opendatacommons.org/licenses/odbl/1-0/. These tiles are a derivative database, also under the ODbL 1.0; the method that made them is this repository at commit $GITHUB_SHA: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/tree/$GITHUB_SHA"
+            echo
+            echo "glyphs.zip holds the map's label glyphs, made from Noto Sans Georgian and Noto Sans (Copyright 2022 The Noto Project Authors, SIL Open Font License 1.1; the licence texts are inside and must go with every copy). sprites.zip holds the driving icons: glyphs from Maki and Temaki (CC0 1.0), badge designs MIT (texts inside). Neither contains OpenStreetMap data."
+            echo
+            echo "georgia.pmtiles is the offline map ($(jq -r .basemap.schema out/manifest.json) schema, Planetiler $(jq -r .basemap.tool.version out/manifest.json), names in Georgian and English), drawn from the same safety-clipped extract as the tiles; basemap gate: $(jq -r '.basemap.gate | "\(.checks - .failed)/\(.checks)"' out/manifest.json) checks passed. It is a derivative database of OpenStreetMap under the ODbL 1.0, also made with OpenStreetMap water polygons and osm-lakelines (ODbL) and Natural Earth (public domain). Its layers follow the OpenMapTiles schema (CC-BY 4.0, https://creativecommons.org/licenses/by/4.0/): a map drawn from it must show \"© OpenMapTiles © OpenStreetMap contributors\", linked to https://openmaptiles.org/ and https://www.openstreetmap.org/copyright, in the map corner at all times."
+            echo
+            echo "georgia_geocoder.sqlite.gz is the offline search database (SQLite with $(jq -r .geocoder.fts out/manifest.json | tr a-z A-Z), gzip-compressed; fold v$(jq -r .geocoder.fold_version out/manifest.json)): $(jq -r '.geocoder.counts | "\(.places) places, \(.streets) streets, \(.addresses) addresses, \(.pois) POIs"' out/manifest.json), made from the same safety-clipped extract as the tiles. Places in the occupied territories are kept only to explain, flagged occupied=1; nothing else there is searchable. Geocoder gate: $(jq -r '.geocoder.gate | "\(.checks - .failed)/\(.checks)"' out/manifest.json) checks passed, $(jq -r .geocoder.gate.queries out/manifest.json) known queries. It is a derivative database of OpenStreetMap under the ODbL 1.0 (© OpenStreetMap contributors)."
+            echo
+            echo "georgia.pmtiles and georgia_geocoder.sqlite.gz stay available here, unrestricted, for as long as an app ships them: an app store package or encryption at rest may put a copy behind technical protection only because this copy exists (ODbL 4.7 parallel distribution). Never merge other map data into them (ODbL 4.4)."
           } > release_notes.md
-          gh release create "$RELEASE_TAG" \
-            out/valhalla/valhalla_tiles.tar out/manifest.json out/nogo_zones.geojson \
+          gh release create "$RELEASE_TAG" "${files[@]}" \
             --target "$GITHUB_SHA" --title "Georgia tiles $RELEASE_TAG" \
             --notes-file release_notes.md
+
+  glyphs-sprites:
+    # Label glyphs and driving icons for the map styles. Reads no OSM data,
+    # so it needs no other job and runs beside build; release-manifest adds
+    # both zips to the manifest and publish attaches them. Read-only token.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      # maplibre/font-maker (BSD-3-Clause) at a fixed commit, checked on
+      # 2026-09-26. Its submodules are pinned by that commit:
+      # sdf-glyph-foundry (BSD-2-Clause), protozero (BSD-2-Clause), cxxopts
+      # (MIT), gulrak/filesystem (MIT). It links Ubuntu's FreeType, used
+      # under the FreeType License.
+      FONT_MAKER_COMMIT: 714ccaea67d384717890a3c2c27143dfdd4189b7
+      # spreet 0.13.1 (MIT), the static Linux build from its GitHub release,
+      # pinned by the SHA-256 GitHub lists for the asset (checked on 2026-09-26).
+      SPREET_URL: https://github.com/flother/spreet/releases/download/v0.13.1/spreet-x86_64-unknown-linux-musl.tar.gz
+      SPREET_SHA256: 0119329214870da10b256f1eae314b9346a7d0a404e3350df902d76796117e64
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Unit tests (standard library only)
+        run: |
+          mkdir -p build/logs
+          if python3 scripts/test_glyphs_sprites.py > build/logs/unit_tests_glyphs_sprites.log 2>&1; then
+            tail -n 1 build/logs/unit_tests_glyphs_sprites.log
+          else
+            tail -n 60 build/logs/unit_tests_glyphs_sprites.log; exit 1
+          fi
+          if grep -q "skipped" build/logs/unit_tests_glyphs_sprites.log; then
+            echo "::error::unit tests were skipped"; exit 1
+          fi
+
+      - name: Install font-maker's build tools
+        run: |
+          # Ubuntu's own packages (headers, compiler, FreeType); only the
+          # font-maker binary built from them runs, and nothing of it ships.
+          if ! { sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends \
+                   clang cmake libboost-dev libfreetype-dev; } > build/logs/apt.log 2>&1; then
+            tail -n 30 build/logs/apt.log; exit 1
+          fi
+          freetype=$(dpkg-query -W -f='${Version}' libfreetype-dev)
+          echo "FREETYPE_VERSION=$freetype" >> "$GITHUB_ENV"
+          echo "FreeType $freetype, $(cmake --version | head -n 1), $(clang --version | head -n 1)"
+
+      - name: Check out font-maker (pinned commit, with its submodules)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          repository: maplibre/font-maker
+          ref: ${{ env.FONT_MAKER_COMMIT }}
+          path: build/tools/font-maker
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Build font-maker
+        run: |
+          head=$(git -C build/tools/font-maker rev-parse HEAD)
+          if [ "$head" != "$FONT_MAKER_COMMIT" ]; then
+            echo "::error::font-maker is at $head, expected $FONT_MAKER_COMMIT"; exit 1
+          fi
+          git -C build/tools/font-maker submodule status --recursive
+          if ! { cmake -S build/tools/font-maker -B build/tools/font-maker-build -DCMAKE_BUILD_TYPE=Release \
+                   && cmake --build build/tools/font-maker-build -j "$(nproc)"; } > build/logs/font_maker_build.log 2>&1; then
+            tail -n 60 build/logs/font_maker_build.log; exit 1
+          fi
+          test -x build/tools/font-maker-build/font-maker
+          echo "ok  font-maker built"
+
+      - name: Download and verify the fonts
+        run: python3 scripts/glyphs.py fetch --out build/fonts
+
+      - name: Build the glyph ranges
+        run: |
+          python3 scripts/glyphs.py build --fonts build/fonts \
+            --font-maker build/tools/font-maker-build/font-maker \
+            --out build/glyphs --log build/logs/font_maker_run.log
+
+      - name: Glyph gate, then glyphs.zip
+        run: |
+          python3 scripts/glyphs.py pack --glyphs build/glyphs \
+            --out build/glyphs-sprites/glyphs.zip --report build/glyphs-sprites/glyphs_report.json \
+            --font-maker-commit "$FONT_MAKER_COMMIT" --freetype "$FREETYPE_VERSION"
+
+      - name: Install spreet (pinned by SHA-256)
+        run: |
+          mkdir -p build/tools/spreet
+          curl -fsSL --retry 5 -o build/tools/spreet.tar.gz "$SPREET_URL"
+          echo "$SPREET_SHA256  build/tools/spreet.tar.gz" | sha256sum -c -
+          tar -xzf build/tools/spreet.tar.gz -C build/tools/spreet spreet
+          build/tools/spreet/spreet --version
+
+      - name: Draw the badges and render the sprite sheets
+        run: |
+          python3 scripts/sprites.py compose --out build/sprite-svg
+          mkdir -p build/sprites
+          build/tools/spreet/spreet build/sprite-svg build/sprites/sprite
+          build/tools/spreet/spreet --retina build/sprite-svg build/sprites/sprite@2x
+          ls -l build/sprites
+
+      - name: Sprite gate, then sprites.zip
+        run: |
+          python3 scripts/sprites.py pack --sprites build/sprites --svg build/sprite-svg \
+            --out build/glyphs-sprites/sprites.zip --report build/glyphs-sprites/sprites_report.json \
+            --spreet-version "$(build/tools/spreet/spreet --version)" --spreet-sha256 "$SPREET_SHA256"
+
+      - name: Hand the tested files on
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: glyphs-sprites
+          path: |
+            build/glyphs-sprites/glyphs.zip
+            build/glyphs-sprites/glyphs_report.json
+            build/glyphs-sprites/sprites.zip
+            build/glyphs-sprites/sprites_report.json
+          retention-days: 3
+          if-no-files-found: error
+
+      - name: Keep reports and logs (14 days)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: glyphs-sprites-reports
+          path: |
+            build/logs/
+            build/glyphs-sprites/*_report.json
+          retention-days: 14
+          if-no-files-found: ignore
+
+  basemap:
+    # The offline map for MapLibre (georgia.pmtiles), drawn by Planetiler from
+    # build's clipped extract, the one the Valhalla gate passed: a road the
+    # navigator may never use is not on the map either, while place labels,
+    # buildings and POIs in the occupied areas stay. Full quality (every
+    # OpenMapTiles layer), names in Georgian and English. Read-only token.
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120    # build 60 + gate 30, plus setup, downloads and the upload
+    permissions:
+      contents: read        # checkout, and reading the previous release's manifest
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Python tools
+        run: |
+          mkdir -p build/basemap build/logs
+          python3 -m venv .venv
+          .venv/bin/pip install --quiet --only-binary :all: --require-hashes -r requirements.lock
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Unit tests
+        run: |
+          if python scripts/test_basemap.py > build/logs/unit_tests_basemap.log 2>&1; then
+            tail -n 1 build/logs/unit_tests_basemap.log
+          else
+            tail -n 60 build/logs/unit_tests_basemap.log; exit 1
+          fi
+          if grep -q "skipped" build/logs/unit_tests_basemap.log; then
+            echo "::error::unit tests were skipped; a Python package is missing"; exit 1
+          fi
+
+      # Planetiler 0.10.2 needs Java 21 or newer. Temurin 21 is in the
+      # runner's tool cache; if it ever has to be downloaded, its signature
+      # must verify.
+      - name: Set up Java 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6  # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "21"
+          verify-signature: true
+          overwrite-settings: false
+
+      - name: Fetch the clipped extract (build job, after its safety gate)
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: clipped-extract
+          path: build/input
+
+      - name: Build georgia.pmtiles
+        timeout-minutes: 60
+        run: bash scripts/build_basemap.sh build/input/georgia-clipped.osm.pbf build/basemap build/logs
+
+      - name: Disk use (run time, disk and RAM are unmeasured until the first run)
+        if: always()
+        run: |
+          df -h "$PWD" | tail -n 1
+          du -sh build/* 2> /dev/null || true
+          free -h | head -n 2
+
+      - name: Fetch the previous release's manifest (size check)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if gh release download --pattern manifest.json --output build/previous_manifest.json 2> /dev/null; then
+            echo "previous release: $(jq -r .tag build/previous_manifest.json)"
+          else
+            rm -f build/previous_manifest.json
+            echo "no previous release to compare with"
+          fi
+
+      - name: Basemap gate (must pass before any release)
+        timeout-minutes: 30
+        run: |
+          previous=()
+          if [ -f build/previous_manifest.json ]; then
+            previous=(--previous-manifest build/previous_manifest.json)
+          fi
+          python scripts/basemap.py gate --pmtiles build/basemap/georgia.pmtiles \
+            --clipped-pbf build/input/georgia-clipped.osm.pbf \
+            --results build/basemap/basemap_gate.json "${previous[@]}"
+
+      - name: Write the basemap report (manifest.py --asset-report)
+        run: |
+          python scripts/basemap.py report --pmtiles build/basemap/georgia.pmtiles \
+            --gate build/basemap/basemap_gate.json --sources build/basemap/sources.json \
+            --build-info build/basemap/build_info.json \
+            --clipped-pbf build/input/georgia-clipped.osm.pbf --commit "$GITHUB_SHA"
+
+      - name: Hand the tested map on
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: basemap
+          path: |
+            build/basemap/georgia.pmtiles
+            build/basemap/basemap_report.json
+          retention-days: 3
+          compression-level: 0   # the tiles inside are already gzip-compressed
+          if-no-files-found: error
+
+      - name: Keep reports and logs (14 days)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: basemap-reports
+          path: |
+            build/logs/
+            build/basemap/basemap_gate.json
+            build/basemap/basemap_report.json
+            build/basemap/sources.json
+            build/basemap/build_info.json
+          retention-days: 14
+          if-no-files-found: ignore
+
+  release-manifest:
+    # build writes the manifest with the tar and the zones only; the files
+    # of the other jobs join it here: glyphs.zip and sprites.zip, and the
+    # basemap and the geocoder (both made from build's clipped extract).
+    # Each report must have passed and its file must match; the map and the
+    # search database must also name the same OSM data, clipped extract,
+    # clip config and commit as build's manifest (all four, or they are
+    # refused). --extend then writes the credits and the map attribution.
+    # Read-only token; publish checks that nothing build wrote was changed.
+    needs: [build, glyphs-sprites, basemap, geocoder]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Python tools
+        run: |
+          mkdir -p build
+          python3 -m venv .venv
+          .venv/bin/pip install --quiet --only-binary :all: --require-hashes -r requirements.lock
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Fetch build's manifest
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: build-manifest
+          path: in
+
+      - name: Fetch the glyphs and sprites
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: glyphs-sprites
+          path: in/glyphs-sprites
+
+      - name: Fetch the basemap
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: basemap
+          path: in/basemap
+
+      - name: Fetch the geocoder
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: geocoder
+          path: in/geocoder
+
+      - name: Add the glyphs, sprites, basemap and geocoder to the manifest
+        run: |
+          python scripts/manifest.py --extend in/manifest.json \
+            --asset-report in/glyphs-sprites/glyphs_report.json \
+            --asset-report in/glyphs-sprites/sprites_report.json \
+            --asset-report in/basemap/basemap_report.json \
+            --asset-report in/geocoder/geocoder_report.json --out build/manifest.json
+
+      - name: Hand the final manifest to the publish job
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: release-manifest
+          path: build/manifest.json
+          retention-days: 3
+          if-no-files-found: error
+
+  geocoder:
+    # The offline search database for the app (georgia_geocoder.sqlite.gz),
+    # built from build's clipped extract, the one the Valhalla gate passed:
+    # a road the navigator may never use is never a search result either.
+    # Places in the occupied areas stay, flagged occupied=1 and labelled only
+    # from name:ka, so the app can explain instead of routing; streets,
+    # addresses and POIs there are dropped, and no legal row belongs to an
+    # occupied settlement. Its gate runs 60+ known queries through the
+    # reference search the app copies. Read-only token.
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read        # checkout, and reading the previous release's manifest
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Python tools
+        run: |
+          mkdir -p build/geocoder build/logs
+          python3 -m venv .venv
+          .venv/bin/pip install --quiet --only-binary :all: --require-hashes -r requirements.lock
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Unit tests
+        run: |
+          if python scripts/test_geocoder.py > build/logs/unit_tests_geocoder.log 2>&1; then
+            tail -n 1 build/logs/unit_tests_geocoder.log
+          else
+            tail -n 60 build/logs/unit_tests_geocoder.log; exit 1
+          fi
+          if grep -q "skipped" build/logs/unit_tests_geocoder.log; then
+            echo "::error::unit tests were skipped; a Python package is missing"; exit 1
+          fi
+
+      - name: Fetch build's manifest and zones
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: build-manifest
+          path: build/in
+
+      - name: Fetch the clipped extract (build job, after its safety gate)
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: clipped-extract
+          path: build/input
+
+      - name: Check the extract and zones are the ones the tiles were built with
+        run: |
+          for pair in "osm.clipped_pbf build/input/georgia-clipped.osm.pbf" "files[1] build/in/nogo_zones.geojson"; do
+            set -- $pair
+            expected=$(jq -r ".$1.sha256 // empty" build/in/manifest.json)
+            actual=$(sha256sum "$2" | cut -d' ' -f1)
+            if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
+              echo "::error::$2: sha256 $actual, manifest says '$expected'"; exit 1
+            fi
+          done
+          if [ "$(jq -r '.files[1].name' build/in/manifest.json)" != "nogo_zones.geojson" ]; then
+            echo "::error::the manifest's second file is not nogo_zones.geojson"; exit 1
+          fi
+          echo "EXTRACT_SHA256=$(jq -r .osm.clipped_pbf.sha256 build/in/manifest.json)" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=$(jq -r .tag build/in/manifest.json)" >> "$GITHUB_ENV"
+          echo "extract and zones match the manifest"
+
+      - name: Build the geocoder
+        timeout-minutes: 30
+        run: |
+          python scripts/geocoder_build.py --pbf build/input/georgia-clipped.osm.pbf \
+            --zones build/in/nogo_zones.geojson --manifest build/in/manifest.json \
+            --out build/geocoder/georgia_geocoder.sqlite --report build/geocoder/build_report.json
+
+      - name: Fetch the previous release's manifest (row-count check)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if gh release download --pattern manifest.json --output build/previous_manifest.json 2> /dev/null; then
+            echo "previous release: $(jq -r .tag build/previous_manifest.json)"
+          else
+            rm -f build/previous_manifest.json
+            echo "no previous release to compare with"
+          fi
+
+      - name: Geocoder gate (must pass before any release)
+        timeout-minutes: 20
+        run: |
+          previous=()
+          if [ -f build/previous_manifest.json ]; then
+            previous=(--previous-manifest build/previous_manifest.json)
+          fi
+          python scripts/geocoder_gate.py --db build/geocoder/georgia_geocoder.sqlite \
+            --zones build/in/nogo_zones.geojson --expect-source-sha256 "$EXTRACT_SHA256" \
+            --expect-tag "$RELEASE_TAG" --results build/geocoder/gate_results.json "${previous[@]}"
+
+      - name: Pack the geocoder and write its report (manifest.py --asset-report)
+        run: |
+          python scripts/geocoder_release.py --db build/geocoder/georgia_geocoder.sqlite \
+            --gate build/geocoder/gate_results.json --build-report build/geocoder/build_report.json \
+            --manifest build/in/manifest.json --commit "$GITHUB_SHA" --out-dir build/geocoder/release
+
+      - name: Hand the tested database on
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: geocoder
+          path: |
+            build/geocoder/release/georgia_geocoder.sqlite.gz
+            build/geocoder/release/geocoder_report.json
+          retention-days: 3
+          compression-level: 0   # already gzip-compressed
+          if-no-files-found: error
+
+      - name: Keep reports and logs (14 days)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: geocoder-reports
+          path: |
+            build/logs/
+            build/geocoder/build_report.json
+            build/geocoder/gate_results.json
+            build/geocoder/release/geocoder_report.json
+          retention-days: 14
+          if-no-files-found: ignore

@@ -1,0 +1,872 @@
+#!/usr/bin/env python3
+"""Unit tests for the offline geocoder on small made-up data. No downloads.
+
+Run from the maps/ folder:
+    python3 scripts/test_geocoder.py
+
+Needs only the Python standard library (sqlite3 with FTS5 and FTS4). The
+test that reads an OSM file needs pyosmium and the cross-checks against
+shapely need shapely; without them those tests are skipped, not failed
+(the CI installs both and fails on any skip).
+"""
+
+import contextlib
+import gzip
+import io
+import json
+import math
+import random
+import sqlite3
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+
+import geocoder_build as gb  # noqa: E402
+import geocoder_gate as gg  # noqa: E402
+import geocoder_release as gr  # noqa: E402
+from geocoder_fold import Fold, check_vectors, georgian_script  # noqa: E402
+from geocoder_search import Searcher, label  # noqa: E402
+
+try:
+    import osmium  # noqa: F401
+    HAVE_OSMIUM = True
+except ImportError:
+    HAVE_OSMIUM = False
+
+try:
+    import numpy  # noqa: F401
+    import shapely  # noqa: F401
+    from shapely.geometry import Point, Polygon
+    HAVE_SHAPELY = True
+except ImportError:
+    HAVE_SHAPELY = False
+
+FOLD = Fold.load()
+CONFIG = gb.load_config()
+
+
+@contextlib.contextmanager
+def quiet():
+    """Keep the scripts' own progress lines out of the test log."""
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        yield
+
+
+def box(lon0, lat0, lon1, lat1):
+    return [(lon0, lat0), (lon1, lat0), (lon1, lat1), (lon0, lat1), (lon0, lat0)]
+
+
+def feature(name, rings):
+    return {"type": "Feature", "properties": {"name": name},
+            "geometry": {"type": "Polygon", "coordinates": [[list(p) for p in r] for r in rings]}}
+
+
+# A made-up Georgia: a 1 x 1 degree square; the occupied area a small square
+# in its north-east; no_go_hard 0.001 degrees (about 100 m) around it, the
+# band 0.005 degrees.
+GEORGIA = box(44.0, 41.5, 45.0, 42.5)
+OCCUPIED = box(44.6, 42.2, 44.8, 42.4)
+HARD = box(44.599, 42.199, 44.801, 42.401)
+BAND = box(44.595, 42.195, 44.805, 42.405)
+
+
+def write_zones(path):
+    data = {"type": "FeatureCollection", "features": [
+        feature("no_go_hard", [HARD]), feature("soft_band_outer", [BAND]),
+        feature("occupied", [OCCUPIED]), feature("georgia", [GEORGIA])]}
+    Path(path).write_text(json.dumps(data), encoding="utf-8")
+
+
+def zones():
+    return gb.Zones(gb.PolygonIndex([GEORGIA]), gb.PolygonIndex([HARD]), gb.PolygonIndex([BAND]),
+                    gb.PolygonIndex([OCCUPIED]))
+
+
+def synthetic_collector():
+    """A tiny country fed straight into the Collector (no OSM file)."""
+    c = gb.Collector(CONFIG)
+    node = c.node
+    # Places. The capital with its admin boundary, a village and a district
+    # both called Vake, a town, occupied places, a place in Russia.
+    node(1, {"place": "city", "name": "თბილისი", "name:en": "Tbilisi", "name:ru": "Тбилиси",
+             "population": "1300000", "capital": "yes"}, 41.70, 44.30)
+    node(2, {"place": "village", "name": "ვაკე", "name:en": "Vake", "population": "240"}, 41.95, 44.10)
+    node(3, {"place": "neighbourhood", "name": "ვაკე", "name:en": "Vake"}, 41.72, 44.27)
+    node(4, {"place": "town", "name": "ბათუმი", "name:en": "Batumi", "population": "20000"}, 41.60, 44.90)
+    node(5, {"place": "town", "name": "Ленингор", "name:ka": "ახალგორი", "name:en": "Akhalgori"}, 42.30, 44.70)
+    node(6, {"place": "village", "name": "Сухум", "name:ka": "სოხუმი", "old_name:ru": "Сухуми;Сохуми"}, 42.4005, 44.70)
+    node(7, {"place": "village", "name": "Russia village", "name:en": "Russkoe"}, 42.70, 44.50)
+    node(8, {"place": "village", "name": "ზოლი", "name:en": "Zoli"}, 42.197, 44.70)  # in the band
+    node(9, {"place": "village", "name": "გუდაური", "name:en": "Gudauri", "population": "54"}, 42.10, 44.50)
+    c.relation(100, {"type": "boundary", "boundary": "administrative", "admin_level": "4", "name": "თბილისი"},
+               [("w", 1000, "outer"), ("w", 1001, "outer"), ("n", 1, "label")])
+    c.way(1000, {}, [10, 11, 12], [(44.2, 41.6), (44.4, 41.6), (44.4, 41.8)])
+    c.way(1001, {}, [12, 13, 10], [(44.4, 41.8), (44.2, 41.8), (44.2, 41.6)])
+    # Streets. Rustaveli avenue in two ways sharing a node, a genitive-only
+    # street named after a village, a street in the occupied area, the same
+    # name again in Batumi.
+    avenue = {"highway": "construction", "construction": "primary", "name": "შოთა რუსთაველის გამზირი",
+              "name:en": "Shota Rustaveli Avenue", "name:ru": "проспект Шота Руставели"}
+    c.way(2000, dict(avenue), [20, 21, 22], [(44.300, 41.700), (44.302, 41.702), (44.304, 41.704)])
+    c.way(2001, dict(avenue, highway="primary"), [22, 23], [(44.304, 41.704), (44.306, 41.706)])
+    c.way(2002, {"highway": "residential", "name": "გუდაურის ქუჩა", "name:en": "Gudauri Street"},
+          [24, 25], [(44.31, 41.71), (44.312, 41.71)])
+    c.way(2003, {"highway": "residential", "name": "проспект Мира"}, [26, 27], [(44.70, 42.30), (44.701, 42.30)])
+    c.way(2004, {"highway": "secondary", "name": "შოთა რუსთაველის ქუჩა", "name:en": "Shota Rustaveli Street"},
+          [28, 29], [(44.900, 41.600), (44.902, 41.601)])
+    c.way(2005, {"highway": "footway", "name": "ბაღის ბილიკი"}, [30, 31], [(44.31, 41.72), (44.311, 41.72)])
+    # Addresses: a shop and its building with the same address (merged,
+    # the building wins), a short addr:street form, a street that exists
+    # only in addresses, one in the occupied area.
+    node(40, {"addr:housenumber": "12", "addr:street": "შოთა რუსთაველის გამზირი", "shop": "books"}, 41.7021, 44.3021)
+    c.way(4000, {"building": "yes", "addr:housenumber": "12", "addr:street": "შოთა რუსთაველის გამზირი"},
+          [41, 42, 43, 44, 41], [(44.3020, 41.7020), (44.3023, 41.7020), (44.3023, 41.7022),
+                                 (44.3020, 41.7022), (44.3020, 41.7020)])
+    node(45, {"addr:housenumber": "39ა", "addr:street": "რუსთაველის გამზირი"}, 41.7050, 44.3055)
+    node(46, {"addr:housenumber": "5", "addr:street": "ახალი ქუჩა", "addr:street:en": "Akhali Street"}, 41.75, 44.35)
+    node(47, {"addr:housenumber": "7", "addr:street": "ახალი ქუჩა"}, 41.7503, 44.3503)
+    node(48, {"addr:housenumber": "1", "addr:street": "проспект Мира"}, 42.30, 44.70)
+    # POIs.
+    node(50, {"amenity": "fuel", "brand": "ვისოლი", "brand:en": "Wissol", "fuel:cng": "yes"}, 41.705, 44.31)
+    c.way(5000, {"amenity": "fuel", "brand": "ვისოლი", "brand:en": "Wissol", "fuel:cng": "yes", "building": "roof"},
+          [51, 52, 53, 51], [(44.3101, 41.7051), (44.3103, 41.7051), (44.3102, 41.7053), (44.3101, 41.7051)])
+    node(54, {"amenity": "fuel", "brand": "გალფი", "brand:en": "Gulf"}, 41.62, 44.90)
+    node(55, {"amenity": "parking"}, 41.701, 44.301)
+    node(56, {"amenity": "hospital", "name": "Hospital"}, 42.35, 44.75)          # occupied: dropped
+    node(57, {"barrier": "border_control", "name": "Border"}, 42.60, 44.50)     # Russia: dropped
+    node(58, {"mountain_pass": "yes", "name": "ჯვრის უღელტეხილი", "name:en": "Jvari Pass"}, 42.0, 44.45)
+    node(59, {"mountain_pass": "yes", "name": "ჯვრის უღელტეხილი"}, 41.55, 44.05)
+    node(60, {"tourism": "hotel"}, 41.70, 44.30)                                # unnamed hotel: not kept
+    c.way(2006, {"highway": "trunk", "name": "სამხედრო გზა"}, [61, 58, 62], [(44.44, 41.99), (44.45, 42.0), (44.46, 42.01)])
+    c.relation(200, {"type": "multipolygon", "natural": "water", "water": "reservoir",
+                     "name": "თბილისის წყალსაცავი", "alt_name:ka": "თბილისის ზღვა", "name:en": "Tbilisi reservoir"},
+               [("w", 6000, "outer"), ("w", 6001, "outer")])
+    c.way(6000, {}, [70, 71, 72], [(44.35, 41.74), (44.37, 41.74), (44.37, 41.76)])
+    c.way(6001, {}, [70, 73, 72], [(44.35, 41.74), (44.35, 41.76), (44.37, 41.76)])  # reversed half
+    # Review fixes (2026-09-26). An occupied city whose 12 km reach spills
+    # over the line onto a legal street and address (addr:city naming it);
+    # an occupied village without name:ka (left out); checkpoints at the
+    # line; two airports, hotels and a street named after Batumi; a
+    # person-named avenue, its lane and a small village of that surname; a
+    # district and a street of one name; a park; an alias; a compound.
+    node(10, {"place": "city", "name": "Цхинвал", "name:ka": "ცხინვალი", "name:en": "Tskhinval"}, 42.25, 44.65)
+    node(11, {"place": "village", "name": "Аҷара"}, 42.33, 44.72)
+    c.way(2010, {"highway": "residential", "name": "გორის ქუჩა"}, [80, 81], [(44.650, 42.170), (44.652, 42.170)])
+    node(82, {"addr:housenumber": "3", "addr:street": "გორის ქუჩა", "addr:city": "ცხინვალი"}, 42.1702, 44.6512)
+    node(83, {"barrier": "border_control", "name": "ზოლის საგუშაგო"}, 42.18, 44.70)   # 2 km from the line
+    node(84, {"barrier": "border_control"}, 42.185, 44.66)                               # unnamed, at the line
+    node(85, {"aeroway": "aerodrome", "name": "ბათუმის საერთაშორისო აეროპორტი",
+              "name:en": "Batumi International Airport"}, 41.61, 44.88)
+    node(86, {"aeroway": "aerodrome", "name": "თბილისის საერთაშორისო აეროპორტი",
+              "name:en": "Tbilisi International Airport"}, 41.67, 44.35)
+    node(87, {"tourism": "hotel", "name": "სასტუმრო ზღვა"}, 41.601, 44.901)
+    node(88, {"tourism": "hotel", "name": "Hotel Tbilisi"}, 41.701, 44.301)
+    c.way(2011, {"highway": "residential", "name": "ბათუმის ქუჩა", "name:en": "Batumi Street"},
+          [89, 90], [(44.305, 41.705), (44.306, 41.705)])
+    node(91, {"place": "village", "name": "წერეთელი", "name:en": "Tsereteli", "population": "900"}, 41.55, 44.50)
+    c.way(2012, {"highway": "primary", "name": "აკაკი წერეთლის გამზირი", "name:en": "Akaki Tsereteli Avenue"},
+          [92, 93], [(44.320, 41.720), (44.330, 41.722)])
+    c.way(2013, {"highway": "residential", "name": "აკაკი წერეთლის შესახვევი"},
+          [94, 95], [(44.302, 41.701), (44.303, 41.701)])
+    node(96, {"place": "suburb", "name": "ისნის რაიონი", "name:en": "Isani District", "population": "130000"},
+         41.69, 44.32)
+    c.way(2014, {"highway": "residential", "name": "ისნის ქუჩა", "name:en": "Isani Street"},
+          [97, 98], [(44.340, 41.690), (44.341, 41.690)])
+    node(99, {"leisure": "park", "name": "ვაკის პარკი"}, 41.721, 44.271)
+    node(100, {"place": "town", "name": "სტეფანწმინდა", "name:en": "Stepantsminda"}, 42.45, 44.20)
+    c.way(2015, {"highway": "primary", "name": "ვაჟა-ფშაველას გამზირი", "name:en": "Vazha-Pshavela Avenue"},
+          [101, 102], [(44.280, 41.725), (44.285, 41.726)])
+    c.finish_relations()
+    return c
+
+
+def build_db(path, engine="fts5"):
+    builder = gb.Builder(CONFIG, FOLD, zones(), synthetic_collector()).build()
+    meta = gb.base_meta(gb.DEFAULT_CONFIG, gb.DEFAULT_FOLD_SPEC, FOLD, CONFIG,
+                        {"sha256": "ab" * 32, "bytes": 1, "timestamp": "2026-09-24T20:21:02Z",
+                         "tag": "osm-20260924T202102Z-3f2a1b0c", "clip_config_version": 2})
+    gb.write_database(path, builder, meta, engine=engine)
+    return builder
+
+
+TBILISI = (41.70, 44.30)
+
+
+class FoldTest(unittest.TestCase):
+
+    def test_shared_vectors(self):
+        self.assertEqual(check_vectors(FOLD), [])
+
+    def test_old_georgian_scripts(self):
+        mkhedruli = "თბილისი"
+        mtavruli = "".join(chr(ord(ch) - 0x10D0 + 0x1C90) for ch in mkhedruli)
+        asomtavruli = "".join(chr(ord(ch) - 0x30) for ch in mkhedruli)
+        nuskhuri = "".join(chr(ord(ch) - 0x10D0 + 0x2D00) for ch in mkhedruli)
+        for text in (mtavruli, asomtavruli, nuskhuri):
+            self.assertEqual(FOLD.keys(text), ["tbilisi"], text)
+        self.assertEqual(georgian_script("a"), "a")
+
+    def test_capital_is_chat_only_after_lower_case(self):
+        self.assertIn("rustaveli", FOLD.token_readings("Rustaveli"))   # auto-capitalised keyboard
+        self.assertEqual(FOLD.token_readings("SOCAR"), ["socar"])      # all capitals: plain
+        self.assertEqual(FOLD.token_readings("rusTaveli"), ["rustaveli"])
+        self.assertEqual(sorted(FOLD.token_readings("Sota")), ["shota", "sota"])
+
+    def test_house_number_letter_joins_number(self):
+        q = FOLD.parse_query("რუსთაველის 39 ა")
+        self.assertEqual([t.keys for t in q.required], [["rustavelis"], ["39a"]])
+        self.assertTrue(q.required[1].is_number)
+
+    def test_type_words_are_optional_unless_alone(self):
+        q = FOLD.parse_query("ჭავჭავაძის გამზირი")
+        self.assertEqual([t.prefixes for t in q.required], [["chavchavadz"]])
+        self.assertEqual([t.keys for t in q.optional], [["gamziri"]])
+        self.assertEqual(len(FOLD.parse_query("გამზირი").required), 1)
+
+    def test_index_keys_skip_single_letters(self):
+        self.assertEqual(FOLD.index_keys("35-ე ქ."), ["35"])
+        self.assertEqual(FOLD.index_keys("Tbilisi tbilisi"), ["tbilisi"])
+
+    def test_genitive_syncope(self):
+        q = FOLD.parse_query("wereTeli")
+        self.assertIn("ceretl", q.required[0].prefixes)   # finds წერეთლის
+        self.assertTrue("ceretlis".startswith("ceretl"))
+
+    def test_empty_and_symbols(self):
+        self.assertTrue(FOLD.parse_query("  , . ").empty)
+        self.assertEqual(FOLD.keys("№ 5"), ["5"])
+
+    def test_house_letter_joins_on_both_sides_but_not_across_a_dot(self):
+        self.assertEqual(FOLD.index_keys("20 ა"), ["20a"])        # the index too
+        self.assertEqual(FOLD.index_keys("12-ა"), ["12a"])
+        q = FOLD.parse_query("ჭავჭავაძის 37, ქ. თბილისი")
+        self.assertEqual([t.keys[0] for t in q.required], ["chavchavadzis", "37", "tbilisi"])
+        q = FOLD.parse_query("ჭავჭავაძის 37 ბ. 12")                 # ბ. = apartment: 37 stays alone, 12 goes
+        self.assertEqual([t.keys[0] for t in q.required], ["chavchavadzis", "37"])
+
+    def test_noise_units_and_postcodes_are_dropped(self):
+        q = FOLD.parse_query("ქ. თბილისი, 0179, ჭავჭავაძის 37, ბინა 12, საქართველო")
+        self.assertEqual([t.keys[0] for t in q.required], ["tbilisi", "chavchavadzis", "37"])
+        self.assertEqual(sorted(q.dropped), sorted(["0179", "ბინა", "12", "საქართველო"]))
+        self.assertEqual([t.keys[0] for t in FOLD.parse_query("пр. Чавчавадзе, дом 37").required],
+                         ["chavchavadze", "37"])
+        self.assertEqual([t.keys[0] for t in FOLD.parse_query("на Руставели").required], ["rustaveli"])
+        # Alone, a noise word is still a query.
+        self.assertEqual([t.keys[0] for t in FOLD.parse_query("საქართველო").required], ["sakartvelo"])
+        # A postcode is dropped only beside another number, unless it starts with 0.
+        self.assertEqual([t.keys[0] for t in FOLD.parse_query("rustaveli 1200").required], ["rustaveli", "1200"])
+        self.assertEqual([t.keys[0] for t in FOLD.parse_query("tbilisi 0108").required], ["tbilisi"])
+
+    def test_postpositions_give_the_nominative(self):
+        for typed, nominative in (("ქუთაისში", "kutaisi"), ("გორში", "gori"), ("ვაკეში", "vake"),
+                                  ("თბილისიდან", "tbilisi"), ("ბათუმამდე", "batumi"), ("ბათუმისკენ", "batumi"),
+                                  ("რუსთაველზე", "rustaveli"), ("გალფთან", "galpi")):
+            token = FOLD.parse_query(typed).required[0]
+            self.assertIn(nominative, token.keys, typed)
+            self.assertIn(FOLD.stem(nominative), token.prefixes, typed)
+        self.assertTrue(FOLD.parse_query("რუსთაველის გამზირზე").optional)   # a type word with a postposition
+
+    def test_initials_and_title_case(self):
+        q = FOLD.parse_query("ი. აბაშიძის 5")
+        self.assertEqual((q.initials, [t.keys[0] for t in q.required]), (["i"], ["abashidzis", "5"]))
+        # One Title Case word may be chat Latin (Sota = შოთა); several are just capitalised.
+        self.assertIn("shot", FOLD.parse_query("Sota rusTaveli").required[0].prefixes)
+        self.assertNotIn("shot", FOLD.parse_query("Sota Rustaveli Street").required[0].prefixes)
+
+    def test_compounds_and_roman_numerals(self):
+        self.assertIn("vajapshavelas", FOLD.index_keys("ვაჟა-ფშაველას გამზირი"))
+        self.assertEqual(FOLD.compound_keys("ვაჟა-ფშაველას გამზირი"), ["vajapshavelas", "gamziri"])
+        self.assertIsNone(FOLD.compound_keys("Şıxlı-2"))
+        self.assertEqual(FOLD.keys("vakhtang vi"), ["vahtang", "6"])
+        self.assertEqual(FOLD.keys("vi"), ["vi"])                      # the first word is never a numeral
+
+    def test_regex_port_hazards(self):
+        # Unicode word classes: 'ტ' is a letter, so 5-ეტაჟიანი is no ordinal.
+        self.assertEqual(FOLD.keys("5-ეტაჟიანი"), ["5", "etajiani"])
+        # Step 0 turns й into и before any table: the table needs no й.
+        self.assertNotIn("й", FOLD.spec["cyrillic"])
+        self.assertEqual(FOLD.keys("Чайка"), ["chaika"])
+        self.assertEqual(FOLD.keys("9-й"), ["9"])
+
+    def test_romanised_labels(self):
+        from geocoder_fold import romanise
+        self.assertEqual(romanise("ცხინვალი", FOLD.spec), "Tskhinvali")
+        self.assertEqual(romanise("ქვემო იკორთა", FOLD.spec), "Kvemo Ikorta")
+        self.assertEqual(romanise("ტყვარჩელი", FOLD.spec), "Tqvarcheli")
+
+
+class GeometryTest(unittest.TestCase):
+
+    STAR = [(math.cos(a) * (1.0 if i % 2 == 0 else 0.45) + 44.0, math.sin(a) * (1.0 if i % 2 == 0 else 0.45) + 42.0)
+            for i, a in enumerate(i * math.pi / 7 for i in range(14))]
+    HOLE = [(43.9, 41.9), (44.1, 41.9), (44.1, 42.1), (43.9, 42.1)]
+    OTHER = box(46.0, 40.0, 46.5, 40.5)
+
+    @staticmethod
+    def brute(rings, x, y):
+        inside = False
+        for ring in rings:
+            pts = gb.clean_ring(ring)
+            for (x1, y1), (x2, y2) in zip(pts, pts[1:] + pts[:1]):
+                if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1):
+                    inside = not inside
+        return inside
+
+    def test_polygon_index_matches_brute_force(self):
+        rings = [self.STAR, self.HOLE, self.OTHER]
+        poly = gb.PolygonIndex(rings)
+        rnd = random.Random(7)
+        for _ in range(4000):
+            x, y = rnd.uniform(42.8, 46.8), rnd.uniform(39.8, 43.2)
+            self.assertEqual(poly.contains(x, y), self.brute(rings, x, y), (x, y))
+        self.assertFalse(poly.contains(44.0, 42.0))   # in the hole
+        self.assertTrue(poly.contains(46.2, 40.2))    # second polygon
+
+    @unittest.skipUnless(HAVE_SHAPELY, "shapely not installed")
+    def test_polygon_index_matches_shapely(self):
+        shp = Polygon(self.STAR, [self.HOLE])
+        poly = gb.PolygonIndex([self.STAR, self.HOLE])
+        rnd = random.Random(11)
+        for _ in range(4000):
+            x, y = rnd.uniform(42.8, 45.2), rnd.uniform(40.8, 43.2)
+            self.assertEqual(poly.contains(x, y), shp.contains(Point(x, y)), (x, y))
+
+    def test_representative_point_lies_inside(self):
+        c_shape = [(0, 0), (3, 0), (3, 1), (1, 1), (1, 2), (3, 2), (3, 3), (0, 3), (0, 0)]
+        x, y = gb.representative_point([c_shape])
+        self.assertTrue(gb.PolygonIndex([c_shape]).contains(x, y))
+
+    def test_assemble_rings_joins_reversed_and_unordered_ways(self):
+        ways = [([1, 2], [(0, 0), (1, 0)]), ([3, 2], [(1, 1), (1, 0)]), ([3, 4, 1], [(1, 1), (0, 1), (0, 0)]),
+                ([8, 9], [(5, 5), (6, 6)])]
+        rings, left = gb.assemble_rings(ways)
+        self.assertEqual(len(rings), 1)
+        self.assertEqual(left, 1)
+        self.assertAlmostEqual(abs(gb.ring_area_centroid(rings[0])[0]), 1.0)
+
+    def test_zones(self):
+        z = zones()
+        self.assertEqual(z.zone(42.3, 44.7), "occupied")
+        self.assertEqual(z.zone(42.1995, 44.7), "buffer")
+        self.assertEqual(z.zone(42.197, 44.7), "band")
+        self.assertIsNone(z.zone(41.7, 44.3))
+        self.assertEqual(z.zone(42.7, 44.5), "outside")
+
+    def test_zones_from_geojson(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "z.geojson"
+            write_zones(path)
+            self.assertEqual(gb.Zones.from_geojson(path).zone(42.3, 44.7), "occupied")
+
+    def test_cluster_points(self):
+        groups = gb.cluster_points([(41.7, 44.3), (41.7005, 44.3), (41.8, 44.3)], 100)
+        self.assertEqual(sorted(len(g) for g in groups), [1, 2])
+
+
+class BuilderTest(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.db = Path(cls.tmp.name) / "geo.sqlite"
+        cls.builder = build_db(cls.db)
+        cls.con = sqlite3.connect(cls.db)
+        cls.searcher = Searcher(str(cls.db))
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.con.close()
+        cls.searcher.con.close()
+        cls.tmp.cleanup()
+
+    def q(self, sql, *args):
+        return self.con.execute(sql, args).fetchall()
+
+    def test_occupied_places_are_kept_and_flagged(self):
+        rows = dict(self.q("SELECT name, occupied FROM places"))
+        self.assertEqual(rows["Ленингор"], 1)
+        self.assertEqual(rows["Сухум"], 1)          # in the 100 m buffer
+        self.assertEqual(rows["თბილისი"], 0)
+        self.assertEqual(self.q("SELECT zone FROM places WHERE name = 'Сухум'")[0][0], "buffer")
+        self.assertEqual(self.q("SELECT zone FROM places WHERE name = 'ზოლი'")[0][0], "band")
+
+    def test_nothing_else_inside_the_occupied_area_or_abroad(self):
+        self.assertEqual(self.q("SELECT count(*) FROM streets WHERE name = 'проспект Мира'")[0][0], 0)
+        self.assertEqual(self.q("SELECT count(*) FROM addresses WHERE housenumber = '1'")[0][0], 0)
+        self.assertEqual(self.q("SELECT count(*) FROM pois WHERE kind IN ('hospital', 'border_control')")[0][0], 0)
+        self.assertEqual(self.q("SELECT count(*) FROM places WHERE name = 'Russia village'")[0][0], 0)
+        z = zones()
+        for table in ("streets", "addresses", "pois"):
+            for lat, lon in self.q(f"SELECT lat, lon FROM {table}"):
+                self.assertNotIn(z.zone(lat, lon), ("occupied", "buffer", "outside"), table)
+
+    def test_row_ids_rank_importance(self):
+        first = self.q("SELECT name FROM places ORDER BY id LIMIT 1")[0][0]
+        self.assertEqual(first, "თბილისი")
+        imps = [r[0] for r in self.q("SELECT importance FROM streets ORDER BY id")]
+        self.assertEqual(imps, sorted(imps, reverse=True))
+
+    def test_district_gets_its_city_and_streets_their_settlement(self):
+        city_id = self.q("SELECT id FROM places WHERE name = 'თბილისი'")[0][0]
+        self.assertEqual(self.q("SELECT parent_id FROM places WHERE kind = 'neighbourhood'")[0][0], city_id)
+        avenue = self.q("SELECT city_id, kind, length_m FROM streets WHERE name = 'შოთა რუსთაველის გამზირი'")
+        self.assertEqual(len(avenue), 1)                       # two ways, one street
+        self.assertEqual(avenue[0][0], city_id)
+        self.assertEqual(avenue[0][1], "primary")              # construction=primary counts as primary
+        self.assertGreater(avenue[0][2], 700)
+        self.assertEqual(self.q("SELECT count(*) FROM streets WHERE name = 'ბაღის ბილიკი'")[0][0], 0)
+
+    def test_addresses_merge_link_and_make_virtual_streets(self):
+        rows = self.q("SELECT osm, street_id FROM addresses WHERE housenumber = '12'")
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0][0], "w4000")                  # the building won
+        avenue = self.q("SELECT id FROM streets WHERE name = 'შოთა რუსთაველის გამზირი'")[0][0]
+        self.assertEqual(rows[0][1], avenue)
+        short = self.q("SELECT street_id FROM addresses WHERE housenumber = '39ა'")[0][0]
+        self.assertEqual(short, avenue)                        # 'რუსთაველის გამზირი' found the avenue
+        virtual = self.q("SELECT id, name_en FROM streets WHERE kind = 'virtual'")
+        self.assertEqual(len(virtual), 1)
+        self.assertEqual(virtual[0][1], "Akhali Street")
+        self.assertEqual(len(self.q("SELECT id FROM addresses WHERE street_id = ?", virtual[0][0])), 2)
+
+    def test_pois_merge_attrs_and_road_passes(self):
+        fuel = self.q("SELECT brand, attrs FROM pois WHERE kind = 'fuel' AND brand = 'ვისოლი'")
+        self.assertEqual(len(fuel), 1)                          # node and area merged
+        self.assertIn("cng", fuel[0][1].split(";"))
+        self.assertEqual(self.q("SELECT count(*) FROM pois WHERE kind = 'parking'")[0][0], 1)
+        self.assertEqual(self.q("SELECT count(*) FROM pois WHERE kind = 'hotel' AND name IS NULL")[0][0], 0)
+        passes = dict(self.q("SELECT osm, importance FROM pois WHERE kind = 'mountain_pass'"))
+        self.assertGreater(passes["n58"], passes["n59"])       # on a road
+        water = self.q("SELECT lat, lon FROM pois WHERE kind = 'water'")
+        self.assertEqual(len(water), 1)
+        self.assertTrue(41.74 < water[0][0] < 41.76 and 44.35 < water[0][1] < 44.37)
+
+    def test_meta_carries_licence_and_rules(self):
+        meta = dict(self.q("SELECT key, value FROM meta"))
+        self.assertEqual(meta["licence"], "ODbL-1.0")
+        self.assertIn("OpenStreetMap contributors", meta["attribution"])
+        self.assertEqual(json.loads(meta["fold_json"])["version"], FOLD.version)
+        self.assertEqual(meta["fts"], "fts5")
+        self.assertEqual(gg.check_meta(self.con, gb.DEFAULT_FOLD_SPEC, gb.DEFAULT_CONFIG, "ab" * 32)[0], [])
+        self.assertTrue(gg.check_meta(self.con, gb.DEFAULT_FOLD_SPEC, gb.DEFAULT_CONFIG, "cd" * 32)[0])
+
+    def top(self, text, near=None):
+        hits = self.searcher.search(text, near=near, limit=5)
+        self.assertTrue(hits, f"nothing for {text!r}")
+        return hits[0]
+
+    def test_search_places_in_every_script(self):
+        for text in ("თბილისი", "tbilisi", "Тбилиси", "TBILISI"):
+            self.assertEqual(self.top(text)["name"], "თბილისი", text)
+        top = self.top("ვაკე", near=TBILISI)
+        self.assertEqual(top["kind"], "neighbourhood")          # the district beats the far village
+
+    def test_search_occupied_places_are_flagged(self):
+        top = self.top("akhalgori")
+        self.assertEqual((top["table"], top["occupied"]), ("places", 1))
+        top = self.top("Сухуми")
+        self.assertEqual((top["table"], top["occupied"]), ("places", 1))
+        for hit in self.searcher.search("проспект Мира", limit=10):
+            self.assertEqual(hit["table"], "places")
+
+    def test_search_streets_and_addresses(self):
+        for text in ("rustaveli", "რუსთაველის გამზირი", "руставели", "rusTavelis gamziri"):
+            top = self.top(text, near=TBILISI)
+            self.assertEqual((top["table"], top["name"]), ("streets", "შოთა რუსთაველის გამზირი"), text)
+        top = self.top("rustaveli 12", near=TBILISI)
+        self.assertEqual((top["table"], top["housenumber"]), ("addresses", "12"))
+        top = self.top("რუსთაველის 39 ა", near=TBILISI)
+        self.assertEqual((top["table"], top["housenumber"]), ("addresses", "39ა"))
+        top = self.top("batumi rustaveli")
+        self.assertEqual((top["table"], top["name"]), ("streets", "შოთა რუსთაველის ქუჩა"))
+        top = self.top("akhali 5")
+        self.assertEqual((top["table"], top["housenumber"]), ("addresses", "5"))
+
+    def test_place_beats_street_named_after_it(self):
+        self.assertEqual(self.top("gudauri")["table"], "places")
+
+    def test_search_pois_brands_and_categories(self):
+        self.assertEqual(self.top("wissol", near=TBILISI)["kind"], "fuel")
+        self.assertEqual(self.top("виссол", near=TBILISI)["kind"], "fuel")
+        top = self.top("metani", near=TBILISI)
+        self.assertIn("cng", top["attrs"].split(";"))
+        self.assertEqual(self.top("parking", near=TBILISI)["kind"], "parking")
+        self.assertEqual(self.top("ბენზინი", near=(41.6, 44.9))["brand"], "გალფი")
+        self.assertEqual(self.top("თბილისის ზღვა")["kind"], "water")
+        self.assertEqual(self.top("jvari pass")["osm"], "n58")
+
+    def test_legal_rows_never_belong_to_an_occupied_settlement(self):
+        occupied_city = self.q("SELECT id FROM places WHERE name_ka = 'ცხინვალი'")[0][0]
+        street = self.q("SELECT city_id FROM streets WHERE name = 'გორის ქუჩა'")[0][0]
+        address = self.q("SELECT city_id FROM addresses WHERE housenumber = '3'")[0][0]
+        self.assertNotEqual(street, occupied_city)        # 9 km away, inside the city's 12 km reach
+        self.assertNotEqual(address, occupied_city)       # although addr:city names it
+        self.assertEqual(gg.check_occupied_links(self.con), [])
+        # The old grid (every settlement) would have taken it.
+        self.assertEqual(self.builder.settlement_of(42.17, 44.65, occupied=True),
+                         next(i for i, r in enumerate(self.builder.places) if r["names"].main["name_ka"] == "ცხინვალი"))
+
+    def test_occupied_places_are_labelled_from_name_ka(self):
+        rows = {r[0]: r[1:] for r in self.q("SELECT name, label_ka, label_en FROM places WHERE occupied = 1")}
+        self.assertEqual(rows["Ленингор"], ("ახალგორი", "Akhalgori"))
+        self.assertEqual(rows["Цхинвал"], ("ცხინვალი", "Tskhinvali"))       # never name:en 'Tskhinval'
+        self.assertNotIn("Аҷара", rows)                                       # no name:ka: left out
+        self.assertEqual(self.builder.stats["places_occupied_without_name_ka_hidden"], 1)
+        self.assertEqual(gg.check_labels(self.con, CONFIG, FOLD.spec)[0], [])
+        legal = dict((r[0], r[1:]) for r in self.q("SELECT name, label_ka, label_en FROM places WHERE occupied = 0"))
+        self.assertEqual(legal["თბილისი"], ("თბილისი", "Tbilisi"))
+        hit = self.top("ცხინვალი")
+        self.assertEqual((hit["occupied"], hit["routable"], hit["reason"]), (1, False, "occupied"))
+        self.assertEqual(label(hit), "ცხინვალი")
+        hit = self.top("Сухуми")
+        self.assertEqual((hit["routable"], hit["reason"]), (False, "occupation_line"))   # the 100 m buffer
+
+    def test_checkpoints_at_the_line_are_no_border(self):
+        kinds = dict(self.q("SELECT kind, count(*) FROM pois WHERE kind IN ('border_control', 'line_checkpoint') "
+                            "GROUP BY kind"))
+        self.assertEqual(kinds, {"line_checkpoint": 1})
+        self.assertEqual(self.builder.stats["pois_dropped_line_checkpoint_unnamed"], 1)
+        for hit in self.searcher.search("border", near=(42.18, 44.70), limit=10):
+            self.assertNotEqual(hit["kind"], "line_checkpoint")
+
+    def test_aliases(self):
+        top = self.top("kazbegi")
+        self.assertEqual((top["table"], top["label_ka"]), ("places", "სტეფანწმინდა"))
+        self.assertEqual(self.top("Казбеги")["label_ka"], "სტეფანწმინდა")
+
+    def test_category_with_a_city_in_the_genitive(self):
+        near = TBILISI
+        self.assertEqual(self.top("ბათუმის აეროპორტი", near)["name"], "ბათუმის საერთაშორისო აეროპორტი")
+        self.assertEqual(self.top("Batumi International Airport", near)["name"], "ბათუმის საერთაშორისო აეროპორტი")
+        self.assertEqual(self.top("Tbilisi International Airport", (41.6, 44.9))["name"],
+                         "თბილისის საერთაშორისო აეროპორტი")
+        self.assertEqual(self.top("ბათუმის სასტუმრო", near)["name"], "სასტუმრო ზღვა")
+        self.assertEqual(self.top("აეროპორტი", near)["name"], "თბილისის საერთაშორისო აეროპორტი")
+
+    def test_occupied_place_named_beside_other_words(self):
+        for text in ("rustaveli ცხინვალი", "ბენზინი ცხინვალი", "hospital tskhinvali", "ცხინვალის აეროპორტი"):
+            hits = self.searcher.search(text, near=TBILISI, limit=5)
+            self.assertEqual((hits[0]["table"], hits[0]["occupied"], hits[0].get("anchor")),
+                             ("places", 1, "occupied"), text)
+            self.assertFalse(hits[0]["routable"])
+            for hit in hits[1:]:
+                self.assertTrue(hit["routable"], text)
+
+    def test_pasted_addresses(self):
+        near = TBILISI
+        top = self.top("12 Shota Rustaveli Ave, Tbilisi 0108, Georgia", near)
+        self.assertEqual((top["table"], top["housenumber"]), ("addresses", "12"))
+        top = self.top("შოთა რუსთაველის გამზ. N12, ბინა 5, საქართველო", near)
+        self.assertEqual((top["table"], top["housenumber"]), ("addresses", "12"))
+        for text in ("Batumi, Georgia", "ბათუმი, საქართველო", "ბათუმში"):
+            top = self.top(text, near)
+            self.assertEqual((top["table"], top["name"]), ("places", "ბათუმი"), text)
+
+    def test_surnames_types_and_initials(self):
+        top = self.top("tsereteli", TBILISI)                 # the avenue, not the lane or the village
+        self.assertEqual(top["name"], "აკაკი წერეთლის გამზირი")
+        self.assertEqual(self.top("gudauri")["table"], "places")   # a street named only after it still yields
+        top = self.top("isnis kucha", TBILISI)                # the street the query names, not the district
+        self.assertEqual((top["table"], top["name"]), ("streets", "ისნის ქუჩა"))
+        self.assertEqual(self.top("ვაჟაფშაველას", TBILISI)["name"], "ვაჟა-ფშაველას გამზირი")
+
+    def test_park_is_no_parking(self):
+        for text in ("პარკი", "ვაკის პარკი", "парк"):
+            for hit in self.searcher.search(text, near=TBILISI, limit=3):
+                self.assertNotEqual(hit.get("category"), "parking", text)
+        self.assertEqual(self.top("ვაკის პარკი", TBILISI)["name"], "ვაკის პარკი")
+        self.assertEqual(self.top("parkin", TBILISI)["kind"], "parking")   # still being typed
+
+    def test_a_word_that_matches_nothing_is_left_out(self):
+        hits = self.searcher.search("rustaveli qwzxv", near=TBILISI, limit=3)
+        self.assertTrue(hits)
+        self.assertEqual((hits[0]["name"], hits[0]["partial"], hits[0]["ignored"]),
+                         ("შოთა რუსთაველის გამზირი", True, ["qwzxv"]))
+        self.assertNotIn("partial", self.top("rustaveli", TBILISI))
+
+    def test_fts4_expressions_stay_bounded(self):
+        q = FOLD.parse_query("Rustaveli Tsereteli Zugdidi Sokhumi")
+        self.assertTrue(all(len(t.prefixes) <= 2 for t in q.required))   # no leading-capital chat readings
+        s4 = Searcher.__new__(Searcher)
+        s4.fts = "fts4"
+        exprs = s4.match_expressions(FOLD.parse_query("ქუთაისში ბათუმში თბილისიდან ვაკეში").required)
+        self.assertLessEqual(len(exprs), 32)
+        self.assertEqual(exprs[0], "kutaish* batumsh* tbilisidan* vakesh*")   # the plain readings first
+
+    def test_fts4_build_gives_the_same_answers(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Path(tmp) / "geo4.sqlite"
+            build_db(db, engine="fts4")
+            s4 = Searcher(str(db))
+            try:
+                for text, near in (("rustaveli", TBILISI), ("rustaveli 12", TBILISI), ("Сухуми", None),
+                                   ("wissol", TBILISI), ("Sota rusTaveli", TBILISI)):
+                    a = self.searcher.search(text, near=near, limit=3)
+                    b = s4.search(text, near=near, limit=3)
+                    self.assertEqual([(h["table"], h["id"]) for h in a], [(h["table"], h["id"]) for h in b], text)
+            finally:
+                s4.con.close()
+
+
+class GateTest(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.db = Path(cls.tmp.name) / "geo.sqlite"
+        build_db(cls.db)
+        cls.zones_path = Path(cls.tmp.name) / "zones.geojson"
+        write_zones(cls.zones_path)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    GATE = {"near": {"tbilisi": list(TBILISI)}, "queries": [
+        {"q": "tbilisi", "table": "places", "kind": "city", "at": [41.70, 44.30], "km": 1},
+        {"q": "akhalgori", "table": "places", "occupied": 1, "at": [42.30, 44.70], "km": 1},
+        {"q": "rustaveli 12", "near": "tbilisi", "table": "addresses", "at": [41.7021, 44.3021], "km": 0.1},
+        {"q": "metani", "near": "tbilisi", "table": "pois", "kind": "fuel", "attr": "cng", "at": "near", "km": 2}]}
+
+    def test_known_queries_pass(self):
+        s = Searcher(str(self.db))
+        problems, results, _ = gg.run_queries(s, self.GATE)
+        self.assertEqual(problems, [])
+        self.assertEqual(len(results), 4)
+        s.con.close()
+
+    def test_a_wrong_expectation_fails(self):
+        s = Searcher(str(self.db))
+        gate = dict(self.GATE, queries=[{"q": "tbilisi", "table": "streets", "at": [42.3, 44.7], "km": 1}])
+        problems, _, _ = gg.run_queries(s, gate)
+        self.assertEqual(len(problems), 2)                     # wrong table and too far
+        s.con.close()
+
+    def test_top_n_and_name(self):
+        s = Searcher(str(self.db))
+        gate = dict(self.GATE, queries=[
+            {"q": "vake", "table": "places", "kind": "village", "top": 3},
+            {"q": "rustaveli", "near": "tbilisi", "table": "streets", "name": "შოთა რუსთაველის გამზირი"},
+            {"q": "rustaveli", "near": "tbilisi", "table": "streets", "name": "ისნის ქუჩა"}])
+        problems, results, _ = gg.run_queries(s, gate)
+        self.assertEqual([r["passed"] for r in results], [True, True, False])
+        s.con.close()
+
+    def test_occupied_links_and_labels_are_checked(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Path(tmp) / "x.sqlite"
+            db.write_bytes(self.db.read_bytes())
+            con = sqlite3.connect(db)
+            occupied = con.execute("SELECT id FROM places WHERE name_ka = 'ცხინვალი'").fetchone()[0]
+            con.execute("UPDATE streets SET city_id = ? WHERE name = 'გორის ქუჩა'", (occupied,))
+            con.execute("UPDATE places SET label_ka = name WHERE name = 'Ленингор'")
+            self.assertTrue(gg.check_occupied_links(con))
+            self.assertTrue(gg.check_labels(con, CONFIG, FOLD.spec)[0])
+            con.close()
+
+    def test_counts_and_previous_release(self):
+        counts = {"places": 10, "streets": 5}
+        gate = {"counts": {"places": [5, 20], "streets": [6, 9]}, "kinds": {"pois.fuel": [1, 3]},
+                "indexed_share": {"places": 0.99}}
+        problems = gg.check_counts(counts, {"pois.fuel": 2}, {"places": 9}, gate)
+        self.assertEqual(len(problems), 2)                     # streets too few, places not all indexed
+        with tempfile.TemporaryDirectory() as tmp:
+            prev = Path(tmp) / "m.json"
+            prev.write_text(json.dumps({"tag": "t", "geocoder": {"counts": {"places": 20}}}))
+            self.assertTrue(gg.check_previous(counts, prev, 0.2)[0])
+            self.assertFalse(gg.check_previous({"places": 19}, prev, 0.2)[0])
+
+    @unittest.skipUnless(HAVE_SHAPELY, "numpy/shapely not installed")
+    def test_zone_check_with_shapely(self):
+        con = sqlite3.connect(self.db)
+        z = gg.ShapelyZones(self.zones_path)
+        problems, detail = gg.check_zones(con, z)
+        self.assertEqual(problems, [])
+        self.assertGreaterEqual(detail["places"]["occupied"], 2)
+        con.execute("UPDATE places SET occupied = 0 WHERE name = 'Ленингор'")
+        self.assertTrue(gg.check_zones(con, z)[0])
+        con.close()
+
+    @unittest.skipUnless(HAVE_SHAPELY, "numpy/shapely not installed")
+    def test_whole_gate_cli(self):
+        gate_cfg = Path(self.tmp.name) / "gate.json"
+        queries = self.GATE["queries"] * 8                     # at least 30 are required
+        gate_cfg.write_text(json.dumps({
+            "counts": {"places": [1, 100]}, "kinds": {}, "indexed_share": {"places": 0.99},
+            "max_drop_vs_previous": 0.2, "size_bytes": [1000, 10 ** 8], "max_query_ms": 5000,
+            "near": self.GATE["near"], "queries": queries}))
+        results = Path(self.tmp.name) / "results.json"
+        with quiet():
+            code = gg.main(["--db", str(self.db), "--zones", str(self.zones_path), "--results", str(results),
+                            "--gate-config", str(gate_cfg), "--expect-source-sha256", "ab" * 32])
+        out = json.loads(results.read_text())
+        self.assertEqual(code, 0, [r for r in out["results"] if not r["passed"]])
+        self.assertEqual(out["db_sha256"], gb.sha256_file(self.db))
+
+
+class ReleaseTest(unittest.TestCase):
+
+    TAG = "osm-20260924T202102Z-3f2a1b0c"
+    COMMIT = "3f2a1b0c" + "0" * 32
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        tmp = self.tmp = Path(self._tmp.name)
+        self.db = tmp / "georgia_geocoder.sqlite"
+        build_db(self.db)
+        sha = gb.sha256_file(self.db)
+        self.gate = {"passed": True, "checks": 3, "failed": 0, "db_sha256": sha, "counts": {"places": 1},
+                     "kinds": {}, "results": [{"name": "x", "passed": True}], "queries": []}
+        self.manifest = {"schema": 2, "tag": self.TAG, "files": [{"name": "valhalla_tiles.tar", "bytes": 1,
+                                                                   "sha256": "00" * 32}],
+                         "osm": {"timestamp": "2026-09-24T20:21:02Z", "clipped_pbf": {"sha256": "ab" * 32}},
+                         "clip": {"config_version": 2}, "source_commit": self.COMMIT}
+        self.write(gate=self.gate, manifest=self.manifest)
+        (tmp / "report.json").write_text(json.dumps({"db": {"sha256": sha}, "source": {"sha256": "ab" * 32}}))
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def write(self, gate=None, manifest=None):
+        if gate is not None:
+            (self.tmp / "gate.json").write_text(json.dumps(gate))
+        if manifest is not None:
+            (self.tmp / "manifest.json").write_text(json.dumps(manifest))
+
+    def run_release(self, out):
+        args = ["--db", str(self.db), "--gate", str(self.tmp / "gate.json"),
+                "--build-report", str(self.tmp / "report.json"), "--manifest", str(self.tmp / "manifest.json"),
+                "--commit", self.COMMIT, "--out-dir", str(self.tmp / out)]
+        with quiet():
+            return gr.main(args)
+
+    def test_pack_and_report(self):
+        self.assertEqual(self.run_release("a"), 0)
+        self.assertEqual(self.run_release("b"), 0)
+        a = (self.tmp / "a" / gr.PACKED_NAME).read_bytes()
+        self.assertEqual(a, (self.tmp / "b" / gr.PACKED_NAME).read_bytes())   # reproducible
+        self.assertEqual(gzip.decompress(a), self.db.read_bytes())
+        report = json.loads((self.tmp / "a" / gr.REPORT_NAME).read_text())
+        self.assertEqual((report["section"], report["passed"]), ("geocoder", True))
+        self.assertEqual(report["files"][0]["sha256"], gb.sha256_file(self.tmp / "a" / gr.PACKED_NAME))
+        self.assertEqual(report["sqlite"]["sha256"], gb.sha256_file(self.db))
+        self.assertEqual(report["licence"], "ODbL-1.0")
+        self.assertIn("ODbL 4.7", report["licence_note"])            # parallel distribution, not "never encrypt"
+        self.assertNotIn("Do not encrypt", report["licence_note"])
+        self.assertEqual(report["credit_sources"][0]["licence"], "ODbL-1.0")
+        self.assertEqual(report["binds_to"], {"osm_timestamp": "2026-09-24T20:21:02Z",
+                                              "clipped_pbf_sha256": "ab" * 32, "clip_config_version": 2,
+                                              "source_commit": self.COMMIT})
+
+    def test_refuses_another_extract_or_a_failed_gate(self):
+        self.write(manifest=dict(self.manifest, osm={"timestamp": "2026-09-24T20:21:02Z",
+                                                     "clipped_pbf": {"sha256": "cd" * 32}}))
+        self.assertEqual(self.run_release("c"), 1)
+        self.write(gate=dict(self.gate, passed=False), manifest=self.manifest)
+        self.assertEqual(self.run_release("d"), 1)
+        self.write(gate=self.gate, manifest=dict(self.manifest, tag="osm-20260101T000000Z"))
+        self.assertEqual(self.run_release("e"), 1)
+
+    @unittest.skipUnless(HAVE_SHAPELY, "numpy/shapely not installed (manifest.py needs them)")
+    def test_manifest_extend_takes_the_report(self):
+        import manifest as mf
+        self.assertEqual(self.run_release("f"), 0)
+        out = self.tmp / "final.json"
+        args = ["--extend", str(self.tmp / "manifest.json"), "--asset-report",
+                str(self.tmp / "f" / gr.REPORT_NAME), "--out", str(out)]
+        with quiet():
+            self.assertEqual(mf.main(args), 0)
+        final = json.loads(out.read_text())
+        self.assertEqual([f["name"] for f in final["files"]], ["valhalla_tiles.tar", gr.PACKED_NAME])
+        self.assertEqual(final["geocoder"]["files"], [gr.PACKED_NAME])
+        self.assertTrue(final["geocoder"]["gate"]["passed"])
+        self.assertEqual([c["part"] for c in final["credits"]], ["routing", "geocoder"])
+        self.assertEqual(final["credits"][1]["files"], [gr.PACKED_NAME])
+        self.assertNotIn("map_attribution", final)                   # no basemap in this release
+        # A report bound to another commit is refused.
+        self.write(manifest=dict(self.manifest, source_commit="f" * 40))
+        with quiet():
+            self.assertEqual(mf.main(args), 1)
+        # So is a geocoder report without binds_to, or with only part of it.
+        self.write(manifest=self.manifest)
+        report_path = self.tmp / "f" / gr.REPORT_NAME
+        good = json.loads(report_path.read_text())
+        for binds in (None, {"source_commit": self.COMMIT}):
+            bad = dict(good)
+            if binds is None:
+                del bad["binds_to"]
+            else:
+                bad["binds_to"] = binds
+            report_path.write_text(json.dumps(bad))
+            with quiet():
+                self.assertEqual(mf.main(args), 1, binds)
+
+
+OSM_XML = """<?xml version='1.0' encoding='UTF-8'?>
+<osm version="0.6" generator="test">
+  <node id="1" version="1" lat="41.70" lon="44.30"><tag k="place" v="city"/><tag k="name" v="თბილისი"/>
+    <tag k="population" v="1300000"/></node>
+  <node id="2" version="1" lat="41.74" lon="44.35"/>
+  <node id="3" version="1" lat="41.74" lon="44.37"/>
+  <node id="4" version="1" lat="41.76" lon="44.37"/>
+  <node id="5" version="1" lat="41.76" lon="44.35"/>
+  <node id="6" version="1" lat="41.701" lon="44.301"/>
+  <node id="7" version="1" lat="41.702" lon="44.305"><tag k="mountain_pass" v="yes"/><tag k="name" v="Pass"/></node>
+  <node id="8" version="1" lat="42.30" lon="44.70"><tag k="place" v="town"/><tag k="name" v="Ленингор"/>
+    <tag k="name:ka" v="ახალგორი"/></node>
+  <node id="12" version="1" lat="42.35" lon="44.75"><tag k="place" v="village"/><tag k="name" v="Аџьрҩара"/></node>
+  <node id="9" version="1" lat="41.7015" lon="44.3015"/>
+  <node id="10" version="1" lat="41.7015" lon="44.3018"/>
+  <node id="11" version="1" lat="41.7018" lon="44.3018"/>
+  <way id="100" version="1"><nd ref="2"/><nd ref="3"/><nd ref="4"/></way>
+  <way id="101" version="1"><nd ref="4"/><nd ref="5"/><nd ref="2"/></way>
+  <way id="102" version="1"><nd ref="6"/><nd ref="7"/><tag k="highway" v="primary"/>
+    <tag k="name" v="შოთა რუსთაველის გამზირი"/></way>
+  <way id="103" version="1"><nd ref="9"/><nd ref="10"/><nd ref="11"/><nd ref="9"/><tag k="building" v="yes"/>
+    <tag k="addr:housenumber" v="12"/><tag k="addr:street" v="შოთა რუსთაველის გამზირი"/></way>
+  <relation id="200" version="1"><member type="way" ref="100" role="outer"/><member type="way" ref="101" role="outer"/>
+    <tag k="type" v="multipolygon"/><tag k="natural" v="water"/><tag k="name" v="თბილისის წყალსაცავი"/></relation>
+</osm>
+"""
+
+
+@unittest.skipUnless(HAVE_OSMIUM, "pyosmium not installed")
+class ReadFileTest(unittest.TestCase):
+    """The pyosmium reading path on a tiny OSM file."""
+
+    def test_read_osm_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "in.osm"
+            src.write_text(OSM_XML, encoding="utf-8")
+            c = gb.Collector(CONFIG)
+            gb.read_pbf(src, c)
+        self.assertEqual(sorted(p["osm"] for p in c.places), ["n1", "n12", "n8"])
+        water = [p for p in c.pois if p["rule"]["kind"] == "water"]
+        self.assertEqual([p["osm"] for p in water], ["r200"])
+        self.assertTrue(41.74 < water[0]["lat"] < 41.76)
+        passes = [p for p in c.pois if p["rule"]["kind"] == "mountain_pass"]
+        self.assertTrue(passes[0]["on_road"])
+        self.assertEqual([w["id"] for w in c.street_ways], [102])
+        self.assertEqual([a["osm"] for a in c.addresses], ["w103"])
+        self.assertTrue(c.addresses[0]["building"])
+        builder = gb.Builder(CONFIG, FOLD, zones(), c).build()
+        self.assertEqual({r["names"].display: r["occupied"] for r in builder.places},
+                         {"თბილისი": 0, "Ленингор": 1})          # no name:ka: left out (owner decision pending)
+        self.assertEqual(builder.stats["places_occupied_without_name_ka_hidden"], 1)
+        self.assertEqual([r["label"] for r in builder.places if r["occupied"]], [("ახალგორი", "Akhalgori")])
+
+
+if __name__ == "__main__":
+    missing = [name for name, ok in (("pyosmium", HAVE_OSMIUM), ("shapely", HAVE_SHAPELY)) if not ok]
+    if missing:
+        print(f"{' and '.join(missing)} not installed: the tests that need them are skipped")
+    try:
+        sqlite3.connect(":memory:").execute("CREATE VIRTUAL TABLE t USING fts5(x)")
+    except sqlite3.OperationalError:
+        print("this Python's SQLite has no FTS5: the geocoder cannot be built here")
+        sys.exit(1)
+    unittest.main(verbosity=2)

@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "changelog": [
+    "1 (2026-09-26): first set. Noto Sans Georgian 2.005 and Noto Sans 2.015 (unhinted TTF, static instances) from notofonts.github.io at commit f145d86c; four stacks plus the two comma-joined pairs."
+  ],
+  "fonts": [
+    {
+      "file": "NotoSansGeorgian-Regular.ttf",
+      "family": "Noto Sans Georgian",
+      "style": "Regular",
+      "version": "2.005",
+      "url": "https://raw.githubusercontent.com/notofonts/notofonts.github.io/f145d86c53996717bc4c25d4602eb9294e43dccc/fonts/NotoSansGeorgian/unhinted/ttf/NotoSansGeorgian-Regular.ttf",
+      "bytes": 35300,
+      "sha256": "f4b229b126859725b75031dd8c051335d20c85e4eb6d525af28f3e83e471baa4",
+      "licence": "OFL-1.1",
+      "licence_file": "OFL-notofonts-georgian.txt"
+    },
+    {
+      "file": "NotoSansGeorgian-Bold.ttf",
+      "family": "Noto Sans Georgian",
+      "style": "Bold",
+      "version": "2.005",
+      "url": "https://raw.githubusercontent.com/notofonts/notofonts.github.io/f145d86c53996717bc4c25d4602eb9294e43dccc/fonts/NotoSansGeorgian/unhinted/ttf/NotoSansGeorgian-Bold.ttf",
+      "bytes": 35820,
+      "sha256": "517722454bbe6587ada79a0509db8c9b292b6a40b025eebe69c151a6508efc7e",
+      "licence": "OFL-1.1",
+      "licence_file": "OFL-notofonts-georgian.txt"
+    },
+    {
+      "file": "NotoSans-Regular.ttf",
+      "family": "Noto Sans",
+      "style": "Regular",
+      "version": "2.015",
+      "url": "https://raw.githubusercontent.com/notofonts/notofonts.github.io/f145d86c53996717bc4c25d4602eb9294e43dccc/fonts/NotoSans/unhinted/ttf/NotoSans-Regular.ttf",
+      "bytes": 431364,
+      "sha256": "f3961a9cde016d41a4879aecda1474d3a36d6bf54fa0e4643de029cc2248b0e8",
+      "licence": "OFL-1.1",
+      "licence_file": "OFL-notofonts-latin-greek-cyrillic.txt"
+    },
+    {
+      "file": "NotoSans-Bold.ttf",
+      "family": "Noto Sans",
+      "style": "Bold",
+      "version": "2.015",
+      "url": "https://raw.githubusercontent.com/notofonts/notofonts.github.io/f145d86c53996717bc4c25d4602eb9294e43dccc/fonts/NotoSans/unhinted/ttf/NotoSans-Bold.ttf",
+      "bytes": 432376,
+      "sha256": "87cb2d84472a7d66da659ee47b6cdb9552326e8c128245231f191b6ac72529d9",
+      "licence": "OFL-1.1",
+      "licence_file": "OFL-notofonts-latin-greek-cyrillic.txt"
+    }
+  ],
+  "licence_files": [
+    {
+      "file": "OFL-notofonts-georgian.txt",
+      "source": "https://raw.githubusercontent.com/notofonts/georgian/10c7f917ac18f7579ea2b8d1d448bff0b05c41fc/OFL.txt",
+      "sha256": "e3f4adf9f719071caae93301fac75384cb8ea075968d0d60565a0732eb08996b"
+    },
+    {
+      "file": "OFL-notofonts-latin-greek-cyrillic.txt",
+      "source": "https://raw.githubusercontent.com/notofonts/latin-greek-cyrillic/023d7b73d5c1a5ed6489bd04a120244c1f2bff3f/OFL.txt",
+      "sha256": "cee9892f9f0cc8fe882c9e9537ee6a89621d86ee7ceaf70b02e2b2b1c25c061a"
+    }
+  ],
+  "stacks": [
+    {"name": "Noto Sans Georgian Regular", "fonts": ["NotoSansGeorgian-Regular.ttf", "NotoSans-Regular.ttf"]},
+    {"name": "Noto Sans Georgian Bold", "fonts": ["NotoSansGeorgian-Bold.ttf", "NotoSans-Bold.ttf"]},
+    {"name": "Noto Sans Regular", "fonts": ["NotoSans-Regular.ttf", "NotoSansGeorgian-Regular.ttf"]},
+    {"name": "Noto Sans Bold", "fonts": ["NotoSans-Bold.ttf", "NotoSansGeorgian-Bold.ttf"]},
+    {"name": "Noto Sans Georgian Regular,Noto Sans Regular", "fonts": ["NotoSansGeorgian-Regular.ttf", "NotoSans-Regular.ttf"]},
+    {"name": "Noto Sans Georgian Bold,Noto Sans Bold", "fonts": ["NotoSansGeorgian-Bold.ttf", "NotoSans-Bold.ttf"]}
+  ]
+}

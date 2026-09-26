@@ -1,0 +1,313 @@
+{
+  "_about": "The search-key fold of the offline geocoder. scripts/geocoder_fold.py applies it when it builds georgia_geocoder.sqlite, and the app must apply the very same fold to what the user types, or nothing matches. The build copies this whole file into the database (meta key 'fold_json'), so the app can check fold_version, or even run from these tables. Bump 'version' whenever a table or rule here changes; the app must then ship the same change. The 'vectors' at the end are the shared test cases for the Swift and Kotlin ports.",
+  "version": 2,
+  "changelog": [
+    "1 (2026-09-26): first version.",
+    "2 (2026-09-26): review fixes. A lone letter after a house number joins it on both sides (the index too, so '20 ა' is 20a); a letter followed by '.' never joins ('37, ქ. თბილისი', '37 ბ. 12'). N/No before a number is dropped (N37 = 37). Ordinals accept en and em dashes, and the Russian endings are written as they look after step 0 (й is и there, so '9-й' is now an ordinal). Lower-case Roman numerals after the first word ('vakhtang vi'). Hyphenated compounds are also indexed joined ('ვაჟაფშაველას'). Query side: noise words (country names, prepositions, 'house') are ignored, apartment/floor/entrance words are ignored with the number after them, a postcode is ignored, Georgian postpositions (-ში, -ზე, -თან, -დან, -მდე, -კენ, -თვის) are also searched without them, syncope also for -ani/-omi, plurals (-ebi, -ebis, -ta), a four-letter genitive (ონის -> on), a letter with a dot before a name is an initial (ი. აბაშიძის), and the leading-capital chat reading is only made when the query has at most one Title Case word. The й and ё entries left the Cyrillic table: step 0 turns them into и and е before any table is used."
+  ],
+  "method": [
+    "Regular expressions here use Python 're' syntax with Unicode word and digit classes: \\w, \\d, \\W and [^\\W\\d_] mean Unicode letters and digits (Java and Kotlin need Pattern.UNICODE_CHARACTER_CLASS; Swift's NSRegularExpression is Unicode-aware already). (?i) makes one pattern case-insensitive.",
+    "0. Per character, in this order: Georgian Mtavruli (U+1C90-U+1CBF), Asomtavruli (U+10A0-U+10CD) and Nuskhuri (U+2D00-U+2D2D) become Mkhedruli (see georgian_scripts); apostrophe-like marks in 'apostrophes' are deleted (T'bilisi = Tbilisi); a letter whose lower case is in 'latin_special' is replaced by that text. Then the whole text is decomposed (Unicode NFD), every combining mark (general category Mn) is deleted, and it is composed again (NFC). This step is part of the fold, not a convenience: it turns й into и, ё into е and é into e before any pattern or table is used, so the tables never see those letters.",
+    "1. 'number_prefix': N, No, Nº or Nr (any case, with or without a dot) right in front of a number is deleted (N37, No 37 = 37).",
+    "2. 'ordinals': each pattern is replaced by the bare number, so 'მე-9', 'მე–9', '9-я', '9-й' and '9th' all become '9'.",
+    "3. 'house_letter': a bare number followed by one letter (with one space or hyphen between them, or nothing) becomes one token, unless a letter, a digit or a '.' follows that letter: '20 ა' and '12-ა' become 20ა and 12ა, while '37, ქ. თბილისი' and '37 ბ. 12' stay apart. It applies to names and to queries alike.",
+    "4. Tokens: maximal runs of letters and digits; everything else separates tokens. Two or more letter tokens joined by single characters from 'compound_hyphens' (no space) form a compound: the index also stores the key of the joined tokens ('ვაჟა-ფშაველას' is indexed as vaja, pshavelas and vajapshavelas), and ranking also tries the name with the compound joined.",
+    "5. Roman numerals: a token written wholly in capital I, V, X (up to roman_numeral_max) becomes its number ('პეკინის II ჩიხი' -> 2). A token of two or more lower-case i, v, x that is not the first token does too ('vakhtang vi' -> 6).",
+    "6. Chat Latin (query side only): in a token that has lower-case Latin letters, a capital from 'chat_capitals' that follows a lower-case letter is the Georgian letter of the keyboard layout (rusTaveli: T = თ). A token that starts with such a capital followed by lower case gets a second reading with that capital as the Georgian letter too (Sota = შოთა, but also 'sota'), but only when the query has at most one Title Case word (an ASCII capital followed only by ASCII lower case): 'Shota Rustaveli Ave' is normal capitalisation. All readings are searched (OR). All-capital tokens are simply lower-cased. The index side never applies chat rules.",
+    "7. Intermediate Latin: Georgian letters use 'georgian' (the national 2002 system without apostrophes, the same letters as BGN/PCGN and OSM name:en), Cyrillic uses 'cyrillic', ASCII letters and digits stay, other digits become their value, then everything is lower case. Other scripts and symbols are dropped.",
+    "8. Skeleton: left to right, longest match first, replace the sequences in 'skeleton' (ts -> c, kh -> h, q -> k, w -> c, ...). Letters not listed stay.",
+    "9. A run of the same letter becomes one letter (Wissol -> cisol). Digits never collapse.",
+    "Search (query side only): every query token is matched as a prefix of its stem ('stem' rules), so რუსთაველის, rustaveli and Руставели all search 'rustavel*'. Extra prefixes, each an alternative (OR): a word with a syncope ending is also searched in its genitive form (stem.syncope: წერეთელი also searches 'ceretl*' for წერეთლის, ისანი 'isn*' for ისნის); a plural (stem.plural) also without its ending (gmirebis -> gmir*, which finds გმირთა); a word with a postposition (stem.postpositions) also as the rest and its stem, and its rebuilt nominative counts as an exact reading (ბათუმში -> batum*, exact batumi; რუსთაველზე -> rustavel*, exact rustaveli). A token is a street-type word when its key, its stem, or the stem of the key without a postposition is a key or stem of 'type_words'; such tokens are optional when the query has other tokens. Tokens in 'noise_words' (also with a postposition glued on) are dropped when the query has other tokens. A token in 'unit_words' is dropped together with a number right after it (ბინა 12, кв. 5, apt 3; a one-letter unit word only with a dot: ბ. 12). A number of postcode.digits digits between postcode.min and postcode.max is dropped when it starts with 0 or when the query has another number. A one-letter token followed by '.' and later by a word is an initial (ი. აბაშიძის): it is not searched, but a name with a word starting with its key ranks higher. Any other one-letter token is dropped. Numbers are never stemmed."
+  ],
+  "georgian_scripts": {
+    "mtavruli": {"from": "U+1C90-U+1CBA", "to": "U+10D0-U+10FA", "and": {"from": "U+1CBD-U+1CBF", "to": "U+10FD-U+10FF"}},
+    "asomtavruli": {"from": "U+10A0-U+10C5", "to": "U+10D0-U+10F5", "and": {"U+10C7": "U+10F7", "U+10CD": "U+10FD"}},
+    "nuskhuri": {"from": "U+2D00-U+2D25", "to": "U+10D0-U+10F5", "and": {"U+2D27": "U+10F7", "U+2D2D": "U+10FD"}}
+  },
+  "apostrophes": ["'", "’", "‘", "ʼ", "ʻ", "`", "´", "′", "ʹ"],
+  "number_prefix": ["(?i)(?<![^\\W_])(?:no|nº|nr|n)\\.?\\s*(?=\\d)", " "],
+  "ordinals": [
+    ["(?<!\\w)მე[-–—]?\\s?(\\d+)", " \\1 "],
+    ["(\\d+)[-–—](ლი|ე)(?!\\w)", "\\1"],
+    ["(\\d+)[-–—](и|я|е|ои|ыи|ии|ая|го)(?!\\w)", "\\1"],
+    ["(?i)(\\d+)(st|nd|rd|th)(?!\\w)", "\\1"]
+  ],
+  "house_letter": ["(?<!\\w)(\\d+)[ \\-–]?([^\\W\\d_])(?![\\w.])", "\\1\\2"],
+  "compound_hyphens": ["-", "‐", "‑", "–"],
+  "roman_numeral_max": 39,
+  "chat_capitals": {"T": "თ", "S": "შ", "C": "ჩ", "W": "ჭ", "Z": "ძ", "J": "ჟ", "R": "ღ"},
+  "georgian": {
+    "ა": "a", "ბ": "b", "გ": "g", "დ": "d", "ე": "e", "ვ": "v", "ზ": "z", "თ": "t", "ი": "i", "კ": "k", "ლ": "l",
+    "მ": "m", "ნ": "n", "ო": "o", "პ": "p", "ჟ": "zh", "რ": "r", "ს": "s", "ტ": "t", "უ": "u", "ფ": "p", "ქ": "k",
+    "ღ": "gh", "ყ": "q", "შ": "sh", "ჩ": "ch", "ც": "ts", "ძ": "dz", "წ": "ts", "ჭ": "ch", "ხ": "kh", "ჯ": "j",
+    "ჰ": "h", "ჱ": "e", "ჲ": "i", "ჳ": "u", "ჴ": "kh", "ჵ": "o", "ჶ": "p", "ჷ": "e", "ჸ": "", "ჹ": "g", "ჺ": "",
+    "ჼ": "n", "ჽ": "", "ჾ": "", "ჿ": ""
+  },
+  "cyrillic": {
+    "а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "е": "e", "ж": "zh", "з": "z", "и": "i", "к": "k", "л": "l",
+    "м": "m", "н": "n", "о": "o", "п": "p", "р": "r", "с": "s", "т": "t", "у": "u", "ф": "f", "х": "kh", "ц": "ts",
+    "ч": "ch", "ш": "sh", "щ": "shch", "ъ": "", "ы": "i", "ь": "", "э": "e", "ю": "iu", "я": "ia", "і": "i", "ї": "i",
+    "є": "e", "ґ": "g", "ў": "u", "ј": "j", "џ": "j", "ә": "a", "ҟ": "k", "ҳ": "kh", "ҭ": "t", "ҵ": "ts", "ҷ": "ch",
+    "ҿ": "ch", "ҽ": "ch", "ӡ": "dz", "ҩ": "u", "ҧ": "p", "ԥ": "p", "ҕ": "g", "ӷ": "g", "ӂ": "zh", "қ": "k", "ң": "n",
+    "ҙ": "z", "ҫ": "s", "ӏ": "", "ө": "o", "ү": "u", "ұ": "u", "һ": "h"
+  },
+  "latin_special": {
+    "š": "sh", "ž": "zh", "č": "ch", "ǯ": "j", "ʒ": "dz", "ǧ": "g", "ğ": "g", "ş": "sh", "ç": "ch", "ə": "e",
+    "ı": "i", "ł": "l", "ø": "o", "æ": "a", "œ": "oe", "ß": "ss", "ʁ": "g", "ɣ": "gh", "ħ": "h", "đ": "d", "ð": "d",
+    "þ": "th", "ŋ": "n"
+  },
+  "skeleton": [
+    ["shch", "sh"],
+    ["dzh", "j"],
+    ["tch", "ch"],
+    ["sh", "sh"],
+    ["ch", "ch"],
+    ["dz", "dz"],
+    ["ts", "c"],
+    ["tz", "c"],
+    ["kh", "h"],
+    ["gh", "g"],
+    ["ph", "p"],
+    ["zh", "j"],
+    ["th", "t"],
+    ["dj", "j"],
+    ["ck", "k"],
+    ["q", "k"],
+    ["y", "k"],
+    ["w", "c"],
+    ["x", "h"],
+    ["f", "p"]
+  ],
+  "stem": {
+    "_note": "Georgian genitive and final vowels. Applied to a whole key (not to numbers) only when it is at least min_key letters long: drop 'is' if at least min_stem letters stay, or if the key is exactly short_is_key letters long (ონის -> on); otherwise drop one final vowel if at least min_stem stay; otherwise drop a final 's' if at least min_stem + 1 stay.",
+    "min_key": 4,
+    "min_stem": 3,
+    "vowels": "aeiou",
+    "syncope": {
+      "_note": "Georgian drops the vowel before l, r, n or m in the genitive (წერეთელი -> წერეთლის, გორგასალი -> გორგასლის, ისანი -> ისნის, დიღომი -> დიღმის). A query word with one of these endings, at least as long as the number given, is also searched as the word without its last three letters plus the ending's middle letter (cereteli -> ceretl*, isani -> isn*).",
+      "endings": {"eli": 6, "ali": 6, "eri": 6, "ari": 6, "ani": 5, "omi": 5}
+    },
+    "short_is_key": 4,
+    "plural": {
+      "_note": "Plural and plural genitive (-ები, -ების, the old -თა). A query word at least min_key letters long with one of these endings right after a consonant is also searched without it, when at least min_stem letters stay (gmirebis -> gmir*, which finds გმირთა). In ranking, a name word whose key loses the same ending by the same rule counts as the same stem.",
+      "endings": ["ebis", "ebi", "ta"],
+      "min_key": 6
+    },
+    "postpositions": {
+      "_note": "Georgian postpositions glued to a word, in the intermediate Latin of step 7 (before the skeleton, so ქუთაისში is kutais + shi, not kutaishi): -ში (in), -ზე (on), -თან (at), -დან (from), -მდე (up to), -კენ (towards), -თვის (for). The shortest ending that fits is cut off when at least min_stem letters stay; the rest (after the skeleton) and its stem are searched as well. The value says how the nominative is rebuilt, which also counts as an exact reading: '+i' adds i after a consonant (ბათუმში -> batumi, ვაკეში -> vake), '=' keeps the rest (თბილისიდან -> tbilisi), 'a>i' and 'is>i' replace that ending of the rest (ბათუმამდე -> batumi, ბათუმისკენ -> batumi).",
+      "endings": {"shi": "+i", "ze": "+i", "tan": "+i", "dan": "=", "mde": "a>i", "ken": "is>i", "tvis": "is>i"}
+    }
+  },
+  "type_words": {
+    "_note": "Street-type and settlement words. Optional in a query that has other words; they still count in ranking. Folded with the rules above before use.",
+    "ka": [
+      "ქუჩა", "ქუჩ", "ქუცა", "ქ", "გამზირი", "გამზ", "შესახვევი", "შეს", "ჩიხი", "გასასვლელი", "გას", "მოედანი",
+      "მოედ", "სანაპირო", "კვარტალი", "კვ", "მიკრორაიონი", "მ/რ", "ხეივანი", "გზატკეცილი", "ტრასა", "აღმართი",
+      "დაღმართი", "ბულვარი", "შოსე", "ქალაქი", "ქალ", "სოფელი", "სოფ", "დაბა", "უბანი", "დასახლება", "რაიონი"
+    ],
+    "en": [
+      "street", "str", "st", "avenue", "ave", "av", "lane", "ln", "road", "rd", "square", "sq", "highway", "hwy",
+      "embankment", "emb", "blind", "alley", "dead", "end", "deadend", "drive", "dr", "boulevard", "blvd", "passage",
+      "exit", "district", "quarter", "microdistrict", "city", "village", "town", "settlement"
+    ],
+    "ru": [
+      "улица", "ул", "проспект", "просп", "пр", "переулок", "пер", "площадь", "пл", "тупик", "шоссе", "набережная",
+      "наб", "бульвар", "проезд", "спуск", "подъем", "подъём", "съезд", "аллея", "линия", "город", "село", "деревня",
+      "микрорайон", "мкр", "квартал", "поселок", "посёлок", "район"
+    ]
+  },
+  "noise_words": {
+    "_note": "Words that say nothing about the destination: country names, prepositions, articles, 'house'. Dropped from a query that has other words (also with a Georgian postposition glued on: საქართველოში). They never count as one of a name's words in ranking either.",
+    "ka": ["საქართველო", "სახლი", "ახლოს"],
+    "en": ["georgia", "sakartvelo", "to", "in", "at", "on", "near", "the", "of", "from", "house", "no"],
+    "ru": ["грузия", "на", "в", "во", "до", "к", "от", "из", "у", "по", "около", "возле", "рядом", "дом"]
+  },
+  "unit_words": {
+    "_note": "Apartment, floor, entrance and room words: the word and a number right after it are dropped (ჭავჭავაძის 37, ბინა 12 -> ჭავჭავაძის 37). A one-letter entry counts only when a '.' follows it (ბ. 12).",
+    "ka": ["ბინა", "ბ", "სართული", "სართ", "სადარბაზო", "სად", "ოთახი"],
+    "en": ["apt", "apartment", "flat", "floor", "fl", "entrance", "room", "suite", "unit"],
+    "ru": ["квартира", "кв", "этаж", "эт", "подъезд", "комната"]
+  },
+  "postcode": {
+    "_note": "Georgian postcodes have four digits (0100-0199 Tbilisi, 1000-6999 the regions). House numbers never start with 0.",
+    "digits": 4,
+    "min": 100,
+    "max": 6999
+  },
+  "tables": {
+    "_note": "Reference only: the two ways people write Georgian in Latin letters. Both fold to the same keys as the Georgian (tested). The app may use national_2002 to show a Latin name when OSM has no name:en.",
+    "national_2002": {
+      "_source": "Georgian national romanization system (2002), also BGN/PCGN 2009. Apostrophes mark ejectives and are usually left out, as in OSM name:en.",
+      "ა": "a",
+      "ბ": "b",
+      "გ": "g",
+      "დ": "d",
+      "ე": "e",
+      "ვ": "v",
+      "ზ": "z",
+      "თ": "t",
+      "ი": "i",
+      "კ": "k'",
+      "ლ": "l",
+      "მ": "m",
+      "ნ": "n",
+      "ო": "o",
+      "პ": "p'",
+      "ჟ": "zh",
+      "რ": "r",
+      "ს": "s",
+      "ტ": "t'",
+      "უ": "u",
+      "ფ": "p",
+      "ქ": "k",
+      "ღ": "gh",
+      "ყ": "q'",
+      "შ": "sh",
+      "ჩ": "ch",
+      "ც": "ts",
+      "ძ": "dz",
+      "წ": "ts'",
+      "ჭ": "ch'",
+      "ხ": "kh",
+      "ჯ": "j",
+      "ჰ": "h"
+    },
+    "keyboard_chat": {
+      "_source": "Informal 'chat Latin' that follows the Georgian keyboard layout (SMS from banks and utilities, social media). Capitals are the Shift layer.",
+      "a": "ა",
+      "b": "ბ",
+      "g": "გ",
+      "d": "დ",
+      "e": "ე",
+      "v": "ვ",
+      "z": "ზ",
+      "T": "თ",
+      "i": "ი",
+      "k": "კ",
+      "l": "ლ",
+      "m": "მ",
+      "n": "ნ",
+      "o": "ო",
+      "p": "პ",
+      "J": "ჟ",
+      "r": "რ",
+      "s": "ს",
+      "t": "ტ",
+      "u": "უ",
+      "f": "ფ",
+      "q": "ქ",
+      "R": "ღ",
+      "y": "ყ",
+      "S": "შ",
+      "C": "ჩ",
+      "c": "ც",
+      "Z": "ძ",
+      "w": "წ",
+      "W": "ჭ",
+      "x": "ხ",
+      "j": "ჯ",
+      "h": "ჰ"
+    }
+  },
+  "vectors": {
+    "_note": "Shared test cases. 'same': the first entry is a name as OSM stores it; every other entry, typed as a query, must find it (the first index key of the name is one of the query's first-token readings). 'different': the first keys must differ. 'keys': the keys of 'text' (single letters included). 'index_keys': what the index stores for 'text'. 'query': the searched prefixes (one list of readings per required token), the optional tokens and, when given, the initials. The nominative a postposition gives is an extra reading of that token (not listed here).",
+    "same": [
+      ["რუსთაველი", "rustaveli", "Rustaveli", "RUSTAVELI", "Руставели", "rusTaveli", "ᲠᲣᲡᲗᲐᲕᲔᲚᲘ"],
+      ["წერეთელი", "Tsereteli", "tsereteli", "wereTeli", "Церетели", "cereteli"],
+      ["საქართველო", "Sakartvelo", "saqartvelo", "saqarTvelo", "Сакартвело"],
+      ["ჭავჭავაძე", "Chavchavadze", "WavWavaZe", "Чавчавадзе", "chavchavadze"],
+      ["თბილისი", "Tbilisi", "T'bilisi", "Тбилиси", "tbilisi"],
+      ["მცხეთა", "Mtskheta", "mcxeta", "Мцхета"],
+      ["ცხინვალი", "Tskhinvali", "cxinvali", "Цхинвали"],
+      ["წყალი", "wyali", "tsqali", "ts'q'ali", "Цкали"],
+      ["ბორჯომი", "Borjomi", "Боржоми", "borjomi"],
+      ["ჯავახეთი", "Javakheti", "javaxeti", "Джавахети", "Dzhavakheti"],
+      ["ღვინო", "ghvino", "Rvino", "gvino"],
+      ["ჟინვალი", "Zhinvali", "Jinvali", "Жинвали"],
+      ["შოთა", "Shota", "Sota", "Шота"],
+      ["სიღნაღი", "Sighnaghi", "signagi", "siRnaRi"],
+      ["ქობულეთი", "Kobuleti", "qobuleti", "Кобулети"],
+      ["ვისოლი", "Visoli", "visoli"],
+      ["ვისოლ", "visol", "Visol"],
+      ["Wissol", "wissol", "WISSOL", "wisol"],
+      ["ზუგდიდი", "Zugdidi", "zugdidi", "Зугдиди"]
+    ],
+    "different": [["რუსთაველი", "რუსთავი"], ["ბათუმი", "ბათუმის"], ["11", "1"]],
+    "keys": [
+      {"text": "შოთა რუსთაველის გამზირი", "keys": ["shota", "rustavelis", "gamziri"]},
+      {"text": "მე-9 ქუჩა", "keys": ["9", "kucha"]},
+      {"text": "ჭავჭავაძის გამზირი 1-ლი ჩიხი", "keys": ["chavchavadzis", "gamziri", "1", "chihi"]},
+      {"text": "35-ე ქ.", "keys": ["35", "k"]},
+      {"text": "9-я линия", "keys": ["9", "linia"]},
+      {"text": "Pekini 1st Dead End", "keys": ["pekini", "1", "dead", "end"]},
+      {"text": "პეკინის II ჩიხი", "keys": ["pekinis", "2", "chihi"]},
+      {"text": "39ა", "keys": ["39a"]},
+      {"text": "12/5", "keys": ["12", "5"]},
+      {"text": "Vazha-Pshavela Avenue", "keys": ["vaja", "pshavela", "avenue"]},
+      {"text": "Tqwarchal", "keys": ["tkcarchal"]},
+      {"text": "Аҟәа", "keys": ["aka"]},
+      {"text": "Ирыхъæу", "keys": ["irihau"]},
+      {"text": "Şıxlı-2", "keys": ["shihli", "2"]},
+      {"text": "ᲗᲑᲘᲚᲘᲡᲘ ᲖᲦᲕᲐ", "keys": ["tbilisi", "zgva"]},
+      {"text": "№ 12, კორპ. 3", "keys": ["12", "korp", "3"]},
+      {"text": "20 ა", "keys": ["20a"]},
+      {"text": "12-ა", "keys": ["12a"]},
+      {"text": "37ა, ქ. თბილისი", "keys": ["37a", "k", "tbilisi"]},
+      {"text": "ჭავჭავაძის 37 ბ. 12", "keys": ["chavchavadzis", "37", "b", "12"]},
+      {"text": "5-ეტაჟიანი", "keys": ["5", "etajiani"]},
+      {"text": "Чайка", "keys": ["chaika"]},
+      {"text": "ᲨᲝᲗᲐ ᲠᲣᲡᲗᲐᲕᲔᲚᲘᲡ ᲒᲐᲛᲖᲘᲠᲘ", "keys": ["shota", "rustavelis", "gamziri"]},
+      {"text": "მე–9 ქუჩა", "keys": ["9", "kucha"]},
+      {"text": "9-й линия", "keys": ["9", "linia"]},
+      {"text": "პეკინის ii ჩიხი", "keys": ["pekinis", "2", "chihi"]},
+      {"text": "vakhtang vi", "keys": ["vahtang", "6"]},
+      {"text": "N37", "keys": ["37"]},
+      {"text": "No. 5", "keys": ["5"]}
+    ],
+    "query": [
+      {"text": "რუსთაველის გამზირი", "required": [["rustavel"]], "optional": ["gamziri"]},
+      {"text": "rusTavelis gamziri", "required": [["rustavel"]], "optional": ["gamziri"]},
+      {"text": "Sota rusTaveli", "required": [["sot", "shot"], ["rustavel", "rustavl"]], "optional": []},
+      {"text": "აღმაშენებელი", "required": [["agmashenebel", "agmashenebl"]], "optional": []},
+      {"text": "gorgasali", "required": [["gorgasal", "gorgasl"]], "optional": []},
+      {"text": "ჭავჭავაძის 37", "required": [["chavchavadz"], ["37"]], "optional": []},
+      {"text": "39 ა", "required": [["39a"]], "optional": []},
+      {"text": "ქ. თბილისი", "required": [["tbilis"]], "optional": []},
+      {"text": "ქუჩა", "required": [["kuch"]], "optional": []},
+      {"text": "Sarpi", "required": [["sarp", "sharp"]], "optional": []},
+      {"text": "ვაკე", "required": [["vak"]], "optional": []},
+      {
+        "text": "ჭავჭავაძის 37, ქ. თბილისი",
+        "required": [["chavchavadz"], ["37"], ["tbilis"]],
+        "optional": [],
+        "initials": ["k"]
+      },
+      {"text": "37ა, ქ. თბილისი", "required": [["37a"], ["tbilis"]], "optional": [], "initials": ["k"]},
+      {"text": "ჭავჭავაძის 37 ბ. 12", "required": [["chavchavadz"], ["37"]], "optional": []},
+      {"text": "ჭავჭავაძის 37, ბინა 12", "required": [["chavchavadz"], ["37"]], "optional": []},
+      {"text": "ჭავჭავაძის გამზ. N37", "required": [["chavchavadz"], ["37"]], "optional": ["gamz"]},
+      {"text": "пр. Чавчавадзе, дом 37", "required": [["chavchavadz", "chavchavad"], ["37"]], "optional": ["pr"]},
+      {"text": "ბათუმი, საქართველო", "required": [["batum"]], "optional": []},
+      {"text": "Batumi, Georgia", "required": [["batum"]], "optional": []},
+      {
+        "text": "12 Shota Rustaveli Ave, Tbilisi 0108, Georgia",
+        "required": [["12"], ["shot"], ["rustavel", "rustavl"], ["tbilis"]],
+        "optional": ["ave"]
+      },
+      {"text": "ბათუმში", "required": [["batumsh", "batum"]], "optional": []},
+      {"text": "რუსთაველის გამზირზე", "required": [["rustavel"]], "optional": ["gamzirze"]},
+      {"text": "აეროპორტამდე", "required": [["aeroportamd", "aeroporta", "aeroport"]], "optional": []},
+      {"text": "ისანი", "required": [["isan", "isn"]], "optional": []},
+      {"text": "gmirebis", "required": [["gmireb", "gmir"]], "optional": []},
+      {"text": "ონის", "required": [["on"]], "optional": []},
+      {"text": "ი. აბაშიძის 5", "required": [["abashidz"], ["5"]], "optional": [], "initials": ["i"]},
+      {"text": "ქუთაისში", "required": [["kutaish", "kutais", "kuta"]], "optional": []},
+      {"text": "რუსთაველზე", "required": [["rustavelz", "rustavel"]], "optional": []}
+    ],
+    "index_keys": [
+      {"text": "ვაჟა-ფშაველას გამზირი", "keys": ["vaja", "pshavelas", "gamziri", "vajapshavelas"]},
+      {"text": "35-ე ქ.", "keys": ["35"]},
+      {"text": "Şıxlı-2", "keys": ["shihli", "2"]}
+    ]
+  }
+}

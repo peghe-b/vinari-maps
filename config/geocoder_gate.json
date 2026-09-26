@@ -1,0 +1,209 @@
+{
+  "_about": "What scripts/geocoder_gate.py demands of georgia_geocoder.sqlite before it may be released. The coordinates come from OSM (Overpass, maps.mail.ru mirror, OSM data of 2026-09-25/26): place nodes, the middle of the named ways, address buildings and POI nodes, each checked by hand. Lowering a count or dropping a query needs a reviewed change to this file.",
+  "_bands_note": "Row counts for all of Georgia. First estimates from the Overpass counts of the research (2026-09-25/26) and a local build over an Overpass sample; tighten them after the first green CI run, as with MIN_EDGES.",
+  "counts": {
+    "places": [4000, 12000],
+    "places_occupied": [500, 3000],
+    "streets": [8000, 80000],
+    "streets_virtual": [0, 20000],
+    "addresses": [60000, 300000],
+    "pois": [6000, 90000]
+  },
+  "kinds": {
+    "places.city": [8, 30],
+    "places.town": [40, 160],
+    "places.village": [2500, 8000],
+    "pois.fuel": [900, 3500],
+    "pois.parking": [1000, 10000],
+    "pois.car_wash": [300, 3000],
+    "pois.car_repair": [400, 4000],
+    "pois.tyres": [30, 800],
+    "pois.charging": [60, 2500],
+    "pois.hospital": [60, 1500],
+    "pois.police": [40, 1500],
+    "pois.border_control": [6, 200],
+    "pois.aerodrome": [3, 60]
+  },
+  "indexed_share": {"places": 0.99, "streets": 0.99, "addresses": 0.99, "pois": 0.25},
+  "max_drop_vs_previous": 0.2,
+  "size_bytes": [3000000, 250000000],
+  "max_query_ms": 2000,
+  "near": {
+    "tbilisi": [41.69346, 44.80145],
+    "batumi": [41.65095, 41.63601],
+    "kutaisi": [42.27161, 42.70545],
+    "gori": [41.98185, 44.11178],
+    "stepantsminda": [42.65799, 44.64081]
+  },
+  "_queries_note": "Each query: q, near (a name from 'near' or [lat, lon]), table (or a list), and any of kind, occupied, attr, name (the top hit's name, name:ka or label_ka), at [lat, lon] or 'near' with km. With top: n, one of the first n hits must meet them all. The second block (from 'ბათუმის აეროპორტი' on) was added on 2026-09-26 from the review of the first geocoder: a category word beside a city in the genitive, a named airport, an occupied place beside other words, a pasted address with country and postcode, a Georgian postposition, a surname without the given name, an initial, and an alias. Checked on a local build over the 2026-09-25/26 sample.",
+  "queries": [
+    {"q": "თბილისი", "table": "places", "kind": "city", "at": [41.69346, 44.80145], "km": 3},
+    {"q": "tbilisi", "table": "places", "kind": "city", "at": [41.69346, 44.80145], "km": 3},
+    {"q": "Тбилиси", "table": "places", "kind": "city", "at": [41.69346, 44.80145], "km": 3},
+    {"q": "batumi", "table": "places", "kind": "city", "at": [41.65095, 41.63601], "km": 3},
+    {"q": "Кутаиси", "table": "places", "kind": "city", "at": [42.27161, 42.70545], "km": 3},
+    {"q": "ᲥᲣᲗᲐᲘᲡᲘ", "table": "places", "kind": "city", "at": [42.27161, 42.70545], "km": 3},
+    {"q": "zugdidi", "table": "places", "at": [42.50721, 41.87169], "km": 3},
+    {"q": "mtskheta", "table": "places", "at": [41.84629, 44.71956], "km": 3},
+    {"q": "Боржоми", "table": "places", "at": [41.84124, 43.38387], "km": 3},
+    {"q": "signagi", "table": "places", "at": [41.61899, 45.92281], "km": 3},
+    {"q": "stepantsminda", "table": "places", "at": [42.65799, 44.64081], "km": 3},
+    {"q": "gudauri", "near": "tbilisi", "table": ["places", "pois"], "at": [42.47656, 44.47703], "km": 4},
+    {"q": "sarpi", "table": ["places", "pois"], "at": [41.5219, 41.54892], "km": 2},
+    {"q": "ვაკე", "near": "tbilisi", "table": "places", "at": [41.70929, 44.76366], "km": 5},
+    {"q": "saburtalo", "near": "tbilisi", "table": "places", "at": [41.72473, 44.75173], "km": 5},
+    {"q": "сухуми", "table": "places", "occupied": 1, "at": [43.00313, 41.01966], "km": 5},
+    {"q": "ცხინვალი", "table": "places", "occupied": 1, "at": [42.22566, 43.97002], "km": 5},
+    {"q": "akhalgori", "table": "places", "occupied": 1, "at": [42.1219, 44.48518], "km": 3},
+    {"q": "ერედვი", "table": "places", "occupied": 1, "at": [42.24754, 44.03738], "km": 3},
+    {"q": "რუსთაველის გამზირი", "near": "tbilisi", "table": "streets", "at": [41.7002, 44.7963], "km": 1.5},
+    {"q": "rustaveli", "near": "tbilisi", "table": "streets", "at": [41.7002, 44.7963], "km": 1.5},
+    {"q": "руставели", "near": "tbilisi", "table": "streets", "at": [41.7002, 44.7963], "km": 1.5},
+    {"q": "rusTavelis gamziri", "near": "tbilisi", "table": "streets", "at": [41.7002, 44.7963], "km": 1.5},
+    {"q": "ჭავჭავაძის გამზირი", "near": "tbilisi", "table": "streets", "at": [41.7105, 44.7611], "km": 2.5},
+    {"q": "wereTlis gamziri", "near": "tbilisi", "table": "streets", "at": [41.7376, 44.7817], "km": 3},
+    {"q": "aghmashenebeli", "near": "tbilisi", "table": "streets", "at": [41.7116, 44.7958], "km": 2},
+    {"q": "batumi rustaveli", "table": "streets", "at": [41.6502, 41.63], "km": 1.5},
+    {"q": "ჭავჭავაძის გამზირი 37", "near": "tbilisi", "table": "addresses", "at": [41.7111, 44.7595], "km": 0.6},
+    {"q": "ჭავჭავაძის 37", "table": "addresses", "at": [41.7111, 44.7595], "km": 0.6},
+    {"q": "rustaveli 12, tbilisi", "table": "addresses", "at": [41.69847, 44.79784], "km": 0.3},
+    {"q": "aghmashenebeli 12", "near": "tbilisi", "table": "addresses", "at": [41.7033, 44.8033], "km": 0.3},
+    {"q": "batumi rustaveli 10", "table": "addresses", "at": [41.653, 41.6373], "km": 0.4},
+    {"q": "wissol", "near": "tbilisi", "table": "pois", "kind": "fuel", "at": "near", "km": 5},
+    {"q": "gulf", "near": "batumi", "table": "pois", "kind": "fuel", "at": "near", "km": 6},
+    {"q": "თბილისის ზღვა", "table": "pois", "kind": "water", "at": [41.742, 44.8525], "km": 3},
+    {"q": "аэропорт", "near": "tbilisi", "table": "pois", "kind": "aerodrome", "at": [41.66855, 44.95467], "km": 4},
+    {"q": "ბენზინი", "near": "kutaisi", "table": "pois", "kind": "fuel", "at": "near", "km": 5},
+    {"q": "parking", "near": "tbilisi", "table": "pois", "kind": "parking", "at": "near", "km": 1.5},
+    {"q": "metani", "near": "tbilisi", "table": "pois", "kind": "fuel", "attr": "cng", "at": "near", "km": 10},
+    {
+      "q": "jvari pass",
+      "near": "tbilisi",
+      "table": "pois",
+      "kind": "mountain_pass",
+      "at": [42.50446, 44.45373],
+      "km": 2
+    },
+    {"q": "საბაჟო", "near": "stepantsminda", "table": "pois", "kind": "border_control", "at": "near", "km": 12},
+    {"q": "hospital", "near": "kutaisi", "table": "pois", "kind": "hospital", "at": "near", "km": 5},
+    {"q": "პოლიცია", "near": "gori", "table": "pois", "kind": "police", "at": "near", "km": 5},
+    {
+      "q": "ბათუმის აეროპორტი",
+      "near": "tbilisi",
+      "table": "pois",
+      "kind": "aerodrome",
+      "at": [41.6086, 41.6016],
+      "km": 3
+    },
+    {
+      "q": "ქუთაისის აეროპორტი",
+      "near": "tbilisi",
+      "table": "pois",
+      "kind": "aerodrome",
+      "at": [42.1772, 42.4755],
+      "km": 3
+    },
+    {
+      "q": "Kutaisi International Airport",
+      "near": "tbilisi",
+      "table": "pois",
+      "kind": "aerodrome",
+      "at": [42.1772, 42.4755],
+      "km": 3
+    },
+    {
+      "q": "Tbilisi International Airport",
+      "near": "batumi",
+      "table": "pois",
+      "kind": "aerodrome",
+      "at": [41.66855, 44.95467],
+      "km": 4
+    },
+    {
+      "q": "ქუთაისის საავადმყოფო",
+      "near": "tbilisi",
+      "table": "pois",
+      "kind": "hospital",
+      "at": [42.27161, 42.70545],
+      "km": 5
+    },
+    {"q": "გორის პოლიცია", "near": "tbilisi", "table": "pois", "kind": "police", "at": [41.98185, 44.11178], "km": 5},
+    {
+      "q": "rustaveli sokhumi",
+      "near": "tbilisi",
+      "table": "places",
+      "occupied": 1,
+      "at": [43.00313, 41.01966],
+      "km": 5
+    },
+    {
+      "q": "სოხუმის აეროპორტი",
+      "near": "tbilisi",
+      "table": "places",
+      "occupied": 1,
+      "at": [43.00313, 41.01966],
+      "km": 5
+    },
+    {
+      "q": "ბენზინი ცხინვალი",
+      "near": "tbilisi",
+      "table": "places",
+      "occupied": 1,
+      "at": [42.22566, 43.97002],
+      "km": 5
+    },
+    {
+      "q": "Batumi, Georgia",
+      "near": "tbilisi",
+      "table": "places",
+      "kind": "city",
+      "at": [41.65095, 41.63601],
+      "km": 3
+    },
+    {
+      "q": "ბათუმი, საქართველო",
+      "near": "tbilisi",
+      "table": "places",
+      "kind": "city",
+      "at": [41.65095, 41.63601],
+      "km": 3
+    },
+    {
+      "q": "12 Shota Rustaveli Ave, Tbilisi 0108, Georgia",
+      "near": "tbilisi",
+      "table": "addresses",
+      "at": [41.69847, 44.79784],
+      "km": 0.3
+    },
+    {"q": "ჭავჭავაძის გამზ. N37", "near": "tbilisi", "table": "addresses", "at": [41.7111, 44.7595], "km": 0.6},
+    {"q": "ბათუმში", "near": "tbilisi", "table": "places", "kind": "city", "at": [41.65095, 41.63601], "km": 3},
+    {
+      "q": "პარკინგი ვაკეში",
+      "near": "tbilisi",
+      "table": "pois",
+      "kind": "parking",
+      "at": [41.70929, 44.76366],
+      "km": 1.5
+    },
+    {
+      "q": "chavchavadze",
+      "near": "tbilisi",
+      "table": "streets",
+      "name": "ილია ჭავჭავაძის გამზირი",
+      "at": [41.7105, 44.7611],
+      "km": 2.5
+    },
+    {"q": "ჭავჭავაძის 37", "near": "tbilisi", "table": "addresses", "at": [41.7111, 44.7595], "km": 0.6},
+    {
+      "q": "tsereteli",
+      "near": "tbilisi",
+      "table": "streets",
+      "name": "აკაკი წერეთლის გამზირი",
+      "at": [41.7376, 44.7817],
+      "km": 3
+    },
+    {"q": "ი. აბაშიძის 5", "near": "tbilisi", "table": "addresses", "at": [41.7074, 44.7733], "km": 0.4},
+    {"q": "isnis kucha", "near": "tbilisi", "table": "streets", "at": [41.6908, 44.8155], "km": 1.5},
+    {"q": "kazbegi", "table": "places", "top": 3, "at": [42.65799, 44.64081], "km": 3}
+  ]
+}

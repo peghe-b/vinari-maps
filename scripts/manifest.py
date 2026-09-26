@@ -12,13 +12,43 @@ It refuses to write a manifest unless the gate passed, the gate's edge scan
 ran and found a plausible number of edges, the gate tested the same clip
 config version, and the gate tested exactly the tar being published.
 
+Files made by other jobs come in through --asset-report: a JSON report
+written by that job's own gate (glyphs.py pack, sprites.py pack, basemap.py
+report, geocoder_release.py), lying next to the files it lists. Each report
+must say it passed, and every file it lists must be there with the same size
+and SHA-256. Its files are appended to "files" (the tar and the zones stay
+first) and the rest of the report becomes a section of the manifest named
+by its "section" key.
+
+In the workflow the build job writes the manifest with the tar and the zones
+only; the release-manifest job then adds glyphs.zip, sprites.zip,
+georgia.pmtiles and georgia_geocoder.sqlite.gz with --extend, which reads the
+manifest the build job wrote and adds --asset-report files to it the same
+way (so a failed glyph job never stops the routing tiles from being built
+and gated). A report that carries "binds_to" must name all four facts, and
+they must match that manifest: the same OSM data time, the same clipped
+extract (--clipped-pbf records its SHA-256 in "osm"), the same clip config
+version and the same source commit. A report of OpenStreetMap data (licence
+ODbL-1.0, or section basemap or geocoder) is refused without binds_to, so a
+map or a search database drawn from another extract cannot slip in.
+
+--extend also writes two top-level keys the build does not: "credits", one
+entry per part of the release with its files, attribution, licence and
+sources (the app's Licences screen shows them all), and, when the release
+has a basemap, "map_attribution", the credit the map must always show.
+
 Usage:
   python scripts/manifest.py --pbf build/georgia-latest.osm.pbf --pbf-url URL \
       --tar build/valhalla/valhalla_tiles.tar --zones build/nogo_zones.geojson \
       --clip-report build/clip_report.json --gate build/gate_results.json \
       --valhalla-config build/valhalla/valhalla.json --out build/manifest.json \
-      [--previous-manifest build/previous_manifest.json]
+      [--previous-manifest build/previous_manifest.json] \
+      [--clipped-pbf build/valhalla/georgia-clipped.osm.pbf] [--asset-report REPORT ...]
   python scripts/manifest.py --tag-only --pbf build/georgia-latest.osm.pbf --commit "$GITHUB_SHA"
+  python scripts/manifest.py --extend in/manifest.json \
+      --asset-report in/glyphs-sprites/glyphs_report.json --asset-report in/glyphs-sprites/sprites_report.json \
+      --asset-report in/basemap/basemap_report.json --asset-report in/geocoder/geocoder_report.json \
+      --out build/manifest.json
 """
 
 import argparse
@@ -117,6 +147,68 @@ def edge_drop_problem(previous_path, edges):
     return None, note
 
 
+SECTION_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
+# Top-level manifest keys an --asset-report section may not take.
+RESERVED_SECTIONS = frozenset({
+    "schema", "tag", "built_at", "attribution", "licence", "sources", "method", "files", "osm",
+    "valhalla", "clip", "gate", "source_commit", "workflow_run", "credits", "map_attribution"})
+# Sections that hold OpenStreetMap data: they must say which extract they came from.
+OSM_SECTIONS = frozenset({"basemap", "geocoder"})
+BINDING_KEYS = ("osm_timestamp", "clipped_pbf_sha256", "clip_config_version", "source_commit")
+COPYRIGHT_URL = "https://www.openstreetmap.org/copyright"
+OPENMAPTILES_URL = "https://openmaptiles.org/"
+MAP_ATTRIBUTION = {
+    "text": "© OpenMapTiles © OpenStreetMap contributors",
+    "links": [{"text": "© OpenMapTiles", "url": OPENMAPTILES_URL},
+              {"text": "© OpenStreetMap contributors", "url": COPYRIGHT_URL}],
+    "rule": ("always visible in the map corner, also during navigation; never only behind an (i) button "
+             "(OpenMapTiles CC-BY 4.0 and its LICENSE; OpenStreetMap ODbL 1.0)"),
+}
+
+
+def asset_report(path, taken_sections, taken_names):
+    """Read one --asset-report. Returns (section, body, file entries, problems)."""
+    path = Path(path)
+    try:
+        report = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return None, None, [], [f"{path}: cannot read the report ({exc})"]
+    problems = []
+    section = report.get("section")
+    if not isinstance(section, str) or not SECTION_PATTERN.match(section):
+        problems.append(f"{path}: bad section name {section!r}")
+    elif section in taken_sections:
+        problems.append(f"{path}: section {section!r} is already in the manifest")
+    if report.get("passed") is not True:
+        problems.append(f"{path}: its gate did not pass")
+    listed = report.get("files")
+    if not isinstance(listed, list) or not listed:
+        problems.append(f"{path}: lists no files")
+        listed = []
+    entries = []
+    for item in listed:
+        name = item.get("name") if isinstance(item, dict) else None
+        if not isinstance(name, str) or not name or "/" in name or name.startswith("."):
+            problems.append(f"{path}: bad file name {name!r}")
+            continue
+        if name in taken_names or any(e["name"] == name for e in entries):
+            problems.append(f"{path}: {name} would appear twice in the release")
+            continue
+        local = path.parent / name
+        if not local.is_file():
+            problems.append(f"{path}: {name} is not next to the report")
+            continue
+        entry = file_entry(local)
+        if entry["sha256"] != item.get("sha256") or entry["bytes"] != item.get("bytes"):
+            problems.append(f"{path}: {name} is {entry['bytes']} bytes, sha256 {entry['sha256']}, "
+                            f"but the report says {item.get('bytes')} bytes, sha256 {item.get('sha256')}")
+            continue
+        entries.append(entry)
+    body = {k: v for k, v in report.items() if k not in ("section", "files", "passed")}
+    body["files"] = [e["name"] for e in entries]
+    return section, body, entries, problems
+
+
 def boundary_entry(config, entry):
     path = Path(config["_dir"]) / entry["file"]
     if entry.get("hand_made"):
@@ -128,9 +220,115 @@ def boundary_entry(config, entry):
             "osm_version": entry["osm_version"], "sha256": sha256(path)}
 
 
+def binding_facts(manifest):
+    """What a report's binds_to must match, from a manifest."""
+    osm = manifest.get("osm") or {}
+    return {"osm_timestamp": osm.get("timestamp"),
+            "clipped_pbf_sha256": (osm.get("clipped_pbf") or {}).get("sha256"),
+            "clip_config_version": (manifest.get("clip") or {}).get("config_version"),
+            "source_commit": manifest.get("source_commit")}
+
+
+def binding_problems(have, section, body, path):
+    """A report that names the build it was made from ("binds_to") must
+    name all four facts and match them, so a map drawn from another extract
+    cannot slip in; a report of OpenStreetMap data must carry binds_to."""
+    binds = body.get("binds_to")
+    if binds is None:
+        if section in OSM_SECTIONS or str(body.get("licence", "")).startswith("ODbL"):
+            return [f"{path}: an OpenStreetMap-derived report ({section}) must carry binds_to"]
+        return []
+    if not isinstance(binds, dict) or not binds:
+        return [f"{path}: binds_to must be a non-empty object"]
+    problems = [f"{path}: binds_to lacks {key!r}" for key in BINDING_KEYS if key not in binds]
+    for key, value in binds.items():
+        if key not in have:
+            problems.append(f"{path}: unknown binds_to key {key!r}")
+        elif have[key] is None or value != have[key]:
+            problems.append(f"{path}: made from {key} {value!r}, but the manifest has {have[key]!r}")
+    return problems
+
+
+def _credit_sources(body):
+    """[{name, licence, attribution, url}] of a section, from its
+    credit_sources (or its sources) list."""
+    out = []
+    for src in body.get("credit_sources") or body.get("sources") or []:
+        if not isinstance(src, dict):
+            continue
+        entry = {k: src[k] for k in ("name", "licence", "attribution", "url", "licence_url", "about") if src.get(k)}
+        if entry.get("name"):
+            out.append(entry)
+    return out
+
+
+def credits(manifest, sections):
+    """One entry per part of the release, in file order: what the app's
+    Licences screen lists (attribution, licence, notice, sources)."""
+    claimed = {name for body in sections.values() for name in body.get("files", [])}
+    build_files = [f["name"] for f in manifest["files"] if f["name"] not in claimed]
+    lic = manifest.get("licence") or {}
+    out = [{"part": "routing", "files": build_files, "attribution": manifest.get("attribution"),
+            "attribution_url": lic.get("attribution_url"), "licence": lic.get("data"),
+            "licence_url": lic.get("data_licence_url"), "notice": lic.get("notice"),
+            "sources": [{k: v for k, v in s.items() if k in ("name", "licence", "attribution", "url")}
+                        for s in manifest.get("sources") or []]}]
+    for section, body in sections.items():
+        entry = {"part": section, "files": body.get("files", [])}
+        for key in ("attribution", "attribution_url", "attribution_links", "licence", "licence_url",
+                    "schema_licence", "schema_licence_url", "schema_licence_uri"):
+            if body.get(key):
+                entry[key] = body[key]
+        if body.get("licence_note"):
+            entry["notice"] = body["licence_note"]
+        entry["sources"] = _credit_sources(body)
+        out.append(entry)
+    return out
+
+
+def extend_manifest(args):
+    """--extend: add --asset-report files to a manifest written earlier."""
+    manifest = json.loads(Path(args.extend).read_text(encoding="utf-8"))
+    problems = [] if args.asset_report else ["--extend needs at least one --asset-report"]
+    if not isinstance(manifest.get("files"), list) or not manifest.get("tag"):
+        problems.append(f"{args.extend} is not a manifest written by this script")
+    names = {f.get("name") for f in manifest.get("files") or []} | {"manifest.json"}
+    added = {}
+    have = binding_facts(manifest)
+    for report_path in args.asset_report:
+        section, body, entries, report_problems = asset_report(
+            report_path, RESERVED_SECTIONS | set(manifest) | set(added), set(names))
+        if not report_problems:
+            report_problems = binding_problems(have, section, body, report_path)
+        problems.extend(report_problems)
+        if not report_problems:
+            added[section] = body
+            manifest["files"].extend(entries)
+            names |= {e["name"] for e in entries}
+            print(f"{section}: " + ", ".join(f"{e['name']} {e['bytes']} bytes" for e in entries))
+    if problems:
+        for problem in problems:
+            print(f"ERROR: {problem}", file=sys.stderr)
+        print("ERROR: no manifest written", file=sys.stderr)
+        return 1
+    manifest.update(added)
+    sections = {k: v for k, v in manifest.items() if k not in RESERVED_SECTIONS and isinstance(v, dict)
+                and isinstance(v.get("files"), list)}
+    manifest["credits"] = credits(manifest, sections)
+    if "basemap" in manifest:
+        links = manifest["basemap"].get("attribution_links") or MAP_ATTRIBUTION["links"]
+        manifest["map_attribution"] = dict(MAP_ATTRIBUTION, links=links)
+    Path(args.out).write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
+                              encoding="utf-8")
+    print(f"manifest: {manifest['tag']}, {len(manifest['files'])} files, {len(manifest['credits'])} credits")
+    return 0
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    p.add_argument("--pbf", required=True)
+    p.add_argument("--pbf", help="the raw extract (required except with --extend)")
+    p.add_argument("--clipped-pbf", help="the clipped extract; its size and SHA-256 go into 'osm'")
+    p.add_argument("--extend", help="manifest.json to add --asset-report files to, instead of writing one")
     p.add_argument("--tag-only", action="store_true", help="just print the release tag")
     p.add_argument("--commit", default=os.environ.get("GITHUB_SHA"),
                    help="source commit; its first 8 hex digits end the tag (default: $GITHUB_SHA)")
@@ -141,9 +339,17 @@ def main(argv=None):
     p.add_argument("--gate")
     p.add_argument("--valhalla-config")
     p.add_argument("--previous-manifest", help="manifest.json of the latest release, if any")
+    p.add_argument("--asset-report", action="append", default=[],
+                   help="report of a job that built more release files (repeatable)")
     p.add_argument("--config", default=str(DEFAULT_CONFIG))
     p.add_argument("--out")
     args = p.parse_args(argv)
+    if args.extend:
+        if not args.out:
+            p.error("--extend needs --out")
+        return extend_manifest(args)
+    if not args.pbf:
+        p.error("--pbf is required")
 
     timestamp = osm_timestamp(args.pbf)
     tag = release_tag(timestamp, args.commit)
@@ -160,6 +366,22 @@ def main(argv=None):
     print(f"edge count: {drop_note}")
     if drop:
         problems.append(drop)
+    zones = file_entry(args.zones)
+    clipped = file_entry(args.clipped_pbf) if args.clipped_pbf else None
+    have = {"osm_timestamp": timestamp, "clipped_pbf_sha256": clipped["sha256"] if clipped else None,
+            "clip_config_version": config["version"], "source_commit": args.commit}
+    sections, extra_files = {}, []
+    for report_path in args.asset_report:
+        section, body, entries, report_problems = asset_report(
+            report_path, RESERVED_SECTIONS | set(sections),
+            {tar["name"], zones["name"], "manifest.json"} | {e["name"] for e in extra_files})
+        if not report_problems:
+            report_problems = binding_problems(have, section, body, report_path)
+        problems.extend(report_problems)
+        if not report_problems:
+            sections[section] = body
+            extra_files.extend(entries)
+            print(f"{section}: " + ", ".join(f"{e['name']} {e['bytes']} bytes" for e in entries))
     if problems:
         for problem in problems:
             print(f"ERROR: {problem}", file=sys.stderr)
@@ -197,11 +419,12 @@ def main(argv=None):
              "licence": "ODbL-1.0"},
         ],
         "method": method_url,
-        "files": [tar, file_entry(args.zones)],
+        "files": [tar, zones] + extra_files,
         "osm": {
             "timestamp": timestamp,
             "source": args.pbf_url,
             "pbf": file_entry(args.pbf),
+            **({"clipped_pbf": clipped} if clipped else {}),
         },
         "valhalla": {
             "version": gate.get("valhalla_version"),
@@ -238,6 +461,7 @@ def main(argv=None):
         "source_commit": args.commit,
         "workflow_run": run_url,
     }
+    manifest.update(sections)
     Path(args.out).write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
                               encoding="utf-8")
     print(f"manifest: {manifest['tag']}, tar {tar['bytes']} bytes, sha256 {tar['sha256'][:12]}...")

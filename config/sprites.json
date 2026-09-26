@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "changelog": [
+    "1 (2026-09-26): first set, 9 badges from Maki 8.2.0 and Temaki 5.13.0.",
+    "2 (2026-09-26): licence of the badges. Version 1 called the badge designs and sheets CC0 1.0, a public-domain dedication that cannot be taken back and that the owner never decided. Until the owner decides, they are under the repository's MIT licence (its text now ships in sprites.zip as LICENSES/vinari-MIT.txt); the Maki and Temaki glyphs stay CC0 1.0. OWNER DECISION PENDING: keep MIT, or dedicate the badges to CC0. Provenance checked: Temaki security_camera.svg was drawn in Temaki by Bryan Housel (commit b7ff5fad, 2019-06-02) and passport_checkpoint.svg by Quincy Morgan (commit 3b857153, 2020-02-26), neither among the icons imported from scottdejonge/map-icons (temaki issue #2); Maki's LICENSE.txt at 6ab50f39 is CC0 1.0."
+  ],
+  "badge": {
+    "size_px": 24,
+    "disc_radius": 9.75,
+    "ring_radius": 11,
+    "edge_radius": 11.75,
+    "edge_opacity": 0.2,
+    "glyph_px": 13,
+    "glyph_colour": "#FFFFFF"
+  },
+  "sources": {
+    "maki": {
+      "repo": "https://github.com/mapbox/maki",
+      "version": "8.2.0",
+      "commit": "6ab50f392294aeb20b3af83e8a10067151876eb9",
+      "path": "icons/",
+      "licence": "CC0-1.0",
+      "licence_file": "maki/LICENSE.txt",
+      "licence_sha256": "36ffd9dc085d529a7e60e1276d73ae5a030b020313e6c5408593a6ae2af39673"
+    },
+    "temaki": {
+      "repo": "https://github.com/rapideditor/temaki",
+      "version": "5.13.0",
+      "commit": "ff12eb30f7f91b4c0e17594f8c548be29aa03f4b",
+      "path": "icons/",
+      "licence": "CC0-1.0",
+      "licence_file": "temaki/LICENSE.md",
+      "licence_sha256": "32e9b76c6886b3b17c7a96ec0fbe6fb96b7ebf41cdd1f344f28b748631f95b8b"
+    }
+  },
+  "icons": [
+    {"name": "fuel", "source": "maki", "file": "fuel.svg",
+     "sha256": "c480ea19df667ec2723fb120bb59f15d987f2bfa0e01b6d7d75cb506531caf46",
+     "colour": "#007AFF", "for": "amenity=fuel"},
+    {"name": "charging-station", "source": "maki", "file": "charging-station.svg",
+     "sha256": "1c7d5872c700d8de7bf6b9b36f355ad4cdfbecd82a0d25be50c9734029d357cd",
+     "colour": "#248A3D", "for": "amenity=charging_station"},
+    {"name": "parking", "source": "maki", "file": "parking.svg",
+     "sha256": "278c990e7eec7b9d740da26b128825066c7c89536a26dc1fc03e30bc0d9af824",
+     "colour": "#5856D6", "for": "amenity=parking"},
+    {"name": "speed-camera", "source": "temaki", "file": "security_camera.svg",
+     "sha256": "3a94c66dda0ec0c7a57627551c1bfa4de1d38a14de47001603504b1fd89a9323",
+     "colour": "#E8590C", "for": "highway=speed_camera"},
+    {"name": "police", "source": "maki", "file": "police.svg",
+     "sha256": "10695fe6943d35a67f04aa1872c324ec5df682bbbba0f49507282103f47e0bb2",
+     "colour": "#1D3A6E", "for": "amenity=police"},
+    {"name": "hospital", "source": "maki", "file": "hospital.svg",
+     "sha256": "00b76d183cdec4df12488c49835938a808b28e04606017a38d8da22834480209",
+     "colour": "#FF3B30", "for": "amenity=hospital"},
+    {"name": "border-crossing", "source": "temaki", "file": "passport_checkpoint.svg",
+     "sha256": "d3abe395fa54ff8f3338ad5bd58d7ab6e48fa7f035655d96b07e45bdcf8058ad",
+     "colour": "#636366", "for": "barrier=border_control"},
+    {"name": "ferry", "source": "maki", "file": "ferry.svg",
+     "sha256": "0ff0d257e92a4cbb8e0894d22a564c3e18e3428d1f670e21b85fc08beb239590",
+     "colour": "#008299", "for": "route=ferry, amenity=ferry_terminal"},
+    {"name": "ferry-excluded", "source": "maki", "file": "ferry.svg",
+     "sha256": "0ff0d257e92a4cbb8e0894d22a564c3e18e3428d1f670e21b85fc08beb239590",
+     "colour": "#8E8E93", "slash": true,
+     "for": "the note that routes never use ferries (the clip drops every ferry that leaves Georgia)"}
+  ]
+}

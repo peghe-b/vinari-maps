@@ -23,13 +23,35 @@ SOFTWARE.
 -------------------------------------------------------------------------------
 DATA
 
-The MIT licence above covers only the code in this repository (scripts,
-workflow and the settings in config/clip.json).
+The MIT licence above covers the code in this repository: the scripts, the
+workflow and the settings files in config/ (*.json), except the data and
+third-party files named below.
 
 The map data is NOT covered by it. The files in config/boundaries/, the
-coordinates in config/gate_routes.json, the routing tiles
-(valhalla_tiles.tar), nogo_zones.geojson and every other file derived from
-OpenStreetMap are (c) OpenStreetMap contributors and are available under the
-Open Database License 1.0 (ODbL):
+coordinates in config/gate_routes.json and config/geocoder_gate.json, the
+spot_checks and city_labels of config/basemap.json, the routing tiles
+(valhalla_tiles.tar), nogo_zones.geojson, the offline map (georgia.pmtiles),
+the search database (georgia_geocoder.sqlite.gz) and every other file
+derived from OpenStreetMap are (c) OpenStreetMap contributors and are
+available under the Open Database License 1.0 (ODbL):
 https://opendatacommons.org/licenses/odbl/1-0/
 Attribution: "© OpenStreetMap contributors", https://www.openstreetmap.org/copyright
+
+-------------------------------------------------------------------------------
+THIRD-PARTY
+
+config/sprites/maki/ (Maki 8.2.0, https://github.com/mapbox/maki) and
+config/sprites/temaki/ (Temaki 5.13.0, https://github.com/rapideditor/temaki)
+are dedicated to the public domain under CC0-1.0; their texts lie alongside.
+The badge designs and sprite sheets made from them (sprites.zip) are under
+the MIT licence above.
+
+config/glyphs/ holds the SIL Open Font License 1.1 texts of Noto Sans
+Georgian and Noto Sans (Copyright 2022 The Noto Project Authors). The fonts
+are downloaded by the workflow, never stored here; the released glyphs.zip
+is made from them and is under the SIL Open Font License 1.1 too.
+
+georgia.pmtiles also follows the OpenMapTiles schema, CC-BY 4.0
+(https://creativecommons.org/licenses/by/4.0/): a map drawn from it must
+visibly credit "© OpenMapTiles" linked to https://openmaptiles.org/, next to
+"© OpenStreetMap contributors" linked to https://www.openstreetmap.org/copyright.

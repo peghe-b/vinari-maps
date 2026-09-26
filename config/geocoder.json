@@ -1,0 +1,474 @@
+{
+  "_about": "What the offline geocoder (scripts/geocoder_build.py) takes from the safety-clipped OSM extract, how it ranks it, and the search words for categories and brands. The build copies this file into the database (meta key 'config_json'), so the app ranks with the same numbers. Bump 'version' whenever anything here changes, and say why in 'changelog'.",
+  "version": 2,
+  "changelog": [
+    "1 (2026-09-26): first version. Places, named streets, addresses, driver POIs (fuel with CNG/LPG, charging, parking, car wash, car repair, tyres, hospital, police, border control) and named destinations (airports, stations, passes, lakes and reservoirs, sights, hotels, malls ...). Occupied areas: places only, flagged occupied=1.",
+    "2 (2026-09-26): review fixes. Streets, addresses, POIs and district parents never take an occupied settlement as their city (occupied places no longer pull legal rows); labels label_ka/label_en (for an occupied place always from name:ka, romanised by the national system, never name or name:en; occupied places without name:ka are left out until the owner decides, places.occupied_without_name_ka); curated aliases (Kazbegi = Stepantsminda); border_control within pois.line_checkpoint_km of the occupied areas is no border crossing (kind line_checkpoint, unnamed ones dropped). Ranking: occupied places x0.9, a road-class prior for streets and addresses, lanes and dead ends x0.9 unless the query names one, a query's street-type word that a name lacks x0.85, a bonus for an initial ('ი. აბაშიძის'), street_named_like_place only for streets named wholly after the place or when the place is a city or town. Categories: exact words, then the same stem, then a word still being typed, never one in not_prefix ('პარკი' is no parking)."
+  ],
+  "name_tags": {
+    "_note": "name, name:ka, name:en and name:ru get their own columns; every tag here is also searched. Values holding ';' are split.",
+    "main": ["name", "name:ka", "name:en", "name:ru"],
+    "other": [
+      "int_name", "official_name", "official_name:ka", "official_name:en", "official_name:ru", "alt_name",
+      "alt_name:ka", "alt_name:en", "alt_name:ru", "old_name", "old_name:ka", "old_name:en", "old_name:ru",
+      "short_name", "short_name:ka", "short_name:en", "short_name:ru", "loc_name", "loc_name:ka", "name:xmf"
+    ],
+    "brand": ["brand", "brand:ka", "brand:en", "brand:ru"]
+  },
+  "places": {
+    "_note": "base: importance before population. reach_km: how far a settlement's pull goes when a street or address has no settlement area around it. district kinds take the city they lie in as parent_id and part of its importance.",
+    "kinds": {
+      "city": {"base": 0.62, "reach_km": 12.0},
+      "town": {"base": 0.52, "reach_km": 5.0},
+      "village": {"base": 0.36, "reach_km": 2.0},
+      "hamlet": {"base": 0.26, "reach_km": 1.0},
+      "suburb": {"base": 0.34, "reach_km": 0},
+      "quarter": {"base": 0.3, "reach_km": 0},
+      "neighbourhood": {"base": 0.28, "reach_km": 0},
+      "locality": {"base": 0.14, "reach_km": 0}
+    },
+    "settlement_kinds": ["city", "town", "village", "hamlet"],
+    "district_kinds": ["suburb", "quarter", "neighbourhood"],
+    "admin_area_kinds": ["city", "town"],
+    "admin_levels": [4, 5, 6, 7, 8, 9, 10],
+    "population_weight": 0.3,
+    "population_full": 1500000,
+    "capital_bonus": {"yes": 0.12, "2": 0.12, "4": 0.04},
+    "wikidata_bonus": 0.02,
+    "parent_weight": 0.35,
+    "_occupied_note": "occupied_without_name_ka: what to do with a place inside no_go_hard that has no name:ka (about one in six in the 2026-09 sample; name and name:en there are the de facto authorities' forms). 'hide' leaves it out of the database; 'name_ru' keeps it with label_ka = label_en = name:ru. OWNER DECISION PENDING; 'hide' until then, because it shows nothing the owner has not approved.",
+    "occupied_without_name_ka": "hide"
+  },
+  "streets": {
+    "_note": "Named ways with these highway values become streets (a way under construction counts with its construction=* class). Ways with the same name are merged when they lie within cluster_m of each other, then again within merge_m inside the same settlement.",
+    "classes": {
+      "motorway": 1.0, "trunk": 0.95, "primary": 0.85, "secondary": 0.75, "tertiary": 0.65, "motorway_link": 0.5,
+      "trunk_link": 0.5, "primary_link": 0.5, "secondary_link": 0.45, "tertiary_link": 0.45, "unclassified": 0.5,
+      "residential": 0.5, "residential_link": 0.4, "living_street": 0.45, "pedestrian": 0.45, "road": 0.4,
+      "service": 0.3, "track": 0.25, "busway": 0.3, "construction": 0.5
+    },
+    "cluster_m": 300,
+    "merge_m": 1000,
+    "class_weight": 0.42,
+    "length_weight": 0.15,
+    "length_full_m": 20000,
+    "city_weight": 0.15
+  },
+  "addresses": {
+    "_note": "Every object with addr:housenumber and addr:street or addr:place. Copies of one address (a shop and its building) within dedup_m are kept once, preferring the building. An address joins the street of the same name within link_m of it; otherwise its addr:street becomes a street of its own ('virtual'). Importance: base + city_weight * the settlement's + street_weight * the street's (+ building_bonus).",
+    "dedup_m": 100,
+    "link_m": 300,
+    "base": 0.15,
+    "building_bonus": 0.03,
+    "city_weight": 0.2,
+    "street_weight": 0.35
+  },
+  "pois": {
+    "_note": "The first rule whose 'match' fits wins. match: a list of alternatives, each a set of tag conditions that must all hold ('*' = any value, '!key' = key absent). named: only objects with a name (or brand) are kept. attrs: extra facts the app can filter on. prior: the kind's share of importance. near_km: nearness scale in ranking (default ranking.near_scale_km.pois): how far people drive to one. dedup_m: copies of one kind with the same name (or both unnamed) this close are kept once.",
+    "dedup_m": 80,
+    "named_weight": 0.08,
+    "brand_weight": 0.06,
+    "wikidata_weight": 0.06,
+    "on_road_bonus": 0.25,
+    "rules": [
+      {
+        "kind": "fuel",
+        "group": "driver",
+        "prior": 0.5,
+        "match": [{"amenity": ["fuel"]}],
+        "attrs": {
+          "cng": {"fuel:cng": ["yes"]},
+          "lpg": {"fuel:lpg": ["yes"]},
+          "diesel": {"fuel:diesel": ["yes"]},
+          "electric": {"fuel:electricity": ["yes"]},
+          "shop": {"shop": ["*"]}
+        }
+      },
+      {"kind": "charging", "group": "driver", "prior": 0.45, "match": [{"amenity": ["charging_station"]}]},
+      {
+        "kind": "parking",
+        "group": "driver",
+        "prior": 0.3,
+        "match": [{"amenity": ["parking"]}],
+        "attrs": {
+          "underground": {"parking": ["underground"]},
+          "multi_storey": {"parking": ["multi-storey"]},
+          "fee": {"fee": ["yes"]},
+          "free": {"fee": ["no"]}
+        }
+      },
+      {"kind": "car_wash", "group": "driver", "prior": 0.35, "match": [{"amenity": ["car_wash"]}]},
+      {
+        "kind": "car_repair",
+        "group": "driver",
+        "prior": 0.35,
+        "match": [{"shop": ["car_repair"]}, {"craft": ["car_repair"]}]
+      },
+      {"kind": "tyres", "group": "driver", "prior": 0.35, "match": [{"shop": ["tyres"]}]},
+      {
+        "kind": "hospital",
+        "group": "driver",
+        "prior": 0.6,
+        "near_km": 8,
+        "match": [{"amenity": ["hospital"]}, {"healthcare": ["hospital"]}],
+        "attrs": {"emergency": {"emergency": ["yes"]}}
+      },
+      {"kind": "police", "group": "driver", "prior": 0.5, "match": [{"amenity": ["police"]}]},
+      {
+        "kind": "border_control",
+        "group": "driver",
+        "prior": 0.7,
+        "near_km": 60,
+        "match": [{"barrier": ["border_control"]}]
+      },
+      {
+        "kind": "aerodrome",
+        "group": "destination",
+        "prior": 0.7,
+        "near_km": 80,
+        "named": true,
+        "match": [{"aeroway": ["aerodrome"]}]
+      },
+      {
+        "kind": "station",
+        "group": "destination",
+        "prior": 0.6,
+        "near_km": 15,
+        "named": true,
+        "match": [
+          {"railway": ["station"], "!station": ["*"]},
+          {"railway": ["station"], "station": ["train"]},
+          {"public_transport": ["station"], "train": ["yes"], "!station": ["*"]}
+        ]
+      },
+      {
+        "kind": "bus_station",
+        "group": "destination",
+        "prior": 0.55,
+        "near_km": 15,
+        "named": true,
+        "match": [{"amenity": ["bus_station"]}]
+      },
+      {
+        "kind": "ferry_terminal",
+        "group": "destination",
+        "prior": 0.5,
+        "near_km": 40,
+        "named": true,
+        "match": [{"amenity": ["ferry_terminal"]}]
+      },
+      {
+        "kind": "mountain_pass",
+        "group": "destination",
+        "prior": 0.45,
+        "near_km": 60,
+        "named": true,
+        "match": [{"mountain_pass": ["yes"]}]
+      },
+      {
+        "kind": "ski_resort",
+        "group": "destination",
+        "prior": 0.7,
+        "near_km": 60,
+        "named": true,
+        "match": [{"landuse": ["winter_sports"]}]
+      },
+      {
+        "kind": "water",
+        "group": "destination",
+        "prior": 0.6,
+        "near_km": 40,
+        "named": true,
+        "match": [{"natural": ["water"], "water": ["lake", "reservoir", "lagoon"]}, {"natural": ["water"], "!water": ["*"]}]
+      },
+      {
+        "kind": "beach",
+        "group": "destination",
+        "prior": 0.45,
+        "near_km": 30,
+        "named": true,
+        "match": [{"natural": ["beach"]}]
+      },
+      {
+        "kind": "waterfall",
+        "group": "destination",
+        "prior": 0.5,
+        "near_km": 40,
+        "named": true,
+        "match": [{"waterway": ["waterfall"]}]
+      },
+      {
+        "kind": "cave",
+        "group": "destination",
+        "prior": 0.5,
+        "near_km": 40,
+        "named": true,
+        "match": [{"natural": ["cave_entrance"]}]
+      },
+      {
+        "kind": "attraction",
+        "group": "destination",
+        "prior": 0.55,
+        "near_km": 15,
+        "named": true,
+        "match": [{"tourism": ["attraction", "museum", "viewpoint", "zoo", "theme_park", "aquarium", "gallery"]}]
+      },
+      {
+        "kind": "historic",
+        "group": "destination",
+        "prior": 0.5,
+        "near_km": 25,
+        "named": true,
+        "match": [
+          {
+            "historic": ["castle", "monastery", "fort", "archaeological_site", "ruins", "monument", "city_gate", "tower"]
+          }
+        ]
+      },
+      {
+        "kind": "place_of_worship",
+        "group": "destination",
+        "prior": 0.45,
+        "near_km": 10,
+        "named": true,
+        "match": [{"amenity": ["place_of_worship"]}]
+      },
+      {
+        "kind": "park",
+        "group": "destination",
+        "prior": 0.45,
+        "near_km": 8,
+        "named": true,
+        "match": [{"leisure": ["park", "garden", "water_park"]}]
+      },
+      {
+        "kind": "stadium",
+        "group": "destination",
+        "prior": 0.5,
+        "near_km": 10,
+        "named": true,
+        "match": [{"leisure": ["stadium"]}]
+      },
+      {
+        "kind": "mall",
+        "group": "destination",
+        "prior": 0.55,
+        "near_km": 10,
+        "named": true,
+        "match": [{"shop": ["mall", "department_store"]}]
+      },
+      {
+        "kind": "supermarket",
+        "group": "destination",
+        "prior": 0.35,
+        "named": true,
+        "match": [{"shop": ["supermarket"]}]
+      },
+      {
+        "kind": "marketplace",
+        "group": "destination",
+        "prior": 0.45,
+        "near_km": 8,
+        "named": true,
+        "match": [{"amenity": ["marketplace"]}]
+      },
+      {
+        "kind": "university",
+        "group": "destination",
+        "prior": 0.45,
+        "near_km": 8,
+        "named": true,
+        "match": [{"amenity": ["university", "college"]}]
+      },
+      {
+        "kind": "embassy",
+        "group": "destination",
+        "prior": 0.45,
+        "near_km": 8,
+        "named": true,
+        "match": [{"office": ["diplomatic"]}, {"amenity": ["embassy"]}]
+      },
+      {
+        "kind": "hotel",
+        "group": "destination",
+        "prior": 0.3,
+        "named": true,
+        "match": [{"tourism": ["hotel", "motel", "guest_house", "hostel"]}]
+      }
+    ],
+    "line_checkpoint_km": 5.0,
+    "_line_checkpoint_note": "A barrier=border_control within line_checkpoint_km of no_go_hard stands at the occupation line, which Georgia does not treat as a border: it is never listed as a border crossing. Named ones stay as kind 'line_checkpoint' (found by name only); unnamed ones are left out. Upper Lars, the nearest real crossing, lies about 18 km from the South Ossetia line."
+  },
+  "brands": {
+    "_note": "Extra search words for brands, mostly Russian and colloquial forms. OSM already carries brand:en on nearly every branded fuel station (research, 2026-09-26). Keys are matched against brand / brand:en / brand:ka / brand:ru after folding.",
+    "Wissol": ["ვისოლი", "ვისოლ", "виссол", "висол", "wisol"],
+    "Gulf": ["გალფი", "გულფი", "галф", "гульф", "гулф"],
+    "SOCAR": ["სოკარი", "სოკარ", "сокар", "socar"],
+    "Rompetrol": ["რომპეტროლი", "ромпетрол"],
+    "Lukoil": ["ლუკოილი", "лукойл", "лукоил"],
+    "Connect": ["ქონექთი", "коннект"],
+    "Portal": ["პორტალი", "портал"],
+    "Ekopetrol": ["ეკოპეტროლი", "экопетрол"],
+    "Neogas": ["ნეოგაზი", "неогаз"],
+    "Gama": ["გამა", "гама"],
+    "Rosneft": ["როსნეფტი", "роснефть"]
+  },
+  "categories": {
+    "_note": "Words that mean a kind of place rather than a name. A query made of them (with or without a place name, 'parking vake') lists the nearest of that kind. attr narrows to POIs carrying that attrs value. A word matches exactly, or by the same stem ('hotels', 'აეროპორტამდე'), or, as the last word of the query, as the start of a longer category word ('parki' -> parking); not_prefix lists finished words that must never count as such a start.",
+    "fuel": {
+      "kind": "fuel",
+      "words": [
+        "ბენზინი", "ბენზინგასამართი", "ბენზინგასამართი სადგური", "საწვავი", "ბენზინის სადგური", "fuel", "gas station",
+        "petrol", "petrol station", "filling station", "benzini", "benzin", "азс", "заправка", "бензин",
+        "бензоколонка", "топливо"
+      ]
+    },
+    "cng": {
+      "kind": "fuel",
+      "attr": "cng",
+      "words": ["მეთანი", "მეთანის სადგური", "გაზი", "cng", "metani", "methane", "метан", "газ", "газовая заправка"]
+    },
+    "lpg": {"kind": "fuel", "attr": "lpg", "words": ["პროპანი", "lpg", "propani", "propane", "пропан", "автогаз"]},
+    "diesel": {"kind": "fuel", "attr": "diesel", "words": ["დიზელი", "diesel", "dizeli", "дизель", "солярка"]},
+    "charging": {
+      "kind": "charging",
+      "words": [
+        "დამტენი", "ელექტრო დამტენი", "დამუხტვა", "charging", "charger", "charging station", "ev", "ev charging",
+        "damteni", "зарядка", "зарядная станция", "электрозаправка"
+      ]
+    },
+    "parking": {
+      "kind": "parking",
+      "words": [
+        "პარკინგი", "ავტოსადგომი", "სადგომი", "parking", "car park", "parkingi", "парковка", "стоянка", "автостоянка",
+        "паркинг"
+      ],
+      "not_prefix": ["პარკი", "park", "парк", "parki"]
+    },
+    "car_wash": {
+      "kind": "car_wash",
+      "words": ["სამრეცხაო", "ავტოსამრეცხაო", "მანქანის სამრეცხაო", "car wash", "carwash", "samrecxao", "мойка", "автомойка"]
+    },
+    "car_repair": {
+      "kind": "car_repair",
+      "words": [
+        "ავტოსერვისი", "სერვისი", "ხელოსანი", "ავტოხელოსანი", "car repair", "car service", "garage", "mechanic",
+        "avtoservisi", "сто", "автосервис", "ремонт авто", "автомастерская"
+      ]
+    },
+    "tyres": {
+      "kind": "tyres",
+      "words": [
+        "ვულკანიზაცია", "საბურავები", "საბურავი", "tyres", "tires", "tyre", "tire", "vulkanizacia", "шиномонтаж",
+        "шины", "вулканизация"
+      ]
+    },
+    "hospital": {
+      "kind": "hospital",
+      "words": ["საავადმყოფო", "ჰოსპიტალი", "კლინიკა", "hospital", "clinic", "saavadmkofo", "больница", "госпиталь", "клиника"]
+    },
+    "police": {
+      "kind": "police",
+      "words": ["პოლიცია", "საპატრულო", "პატრული", "police", "patrol", "policia", "полиция", "патруль", "милиция"]
+    },
+    "border_control": {
+      "kind": "border_control",
+      "words": [
+        "საბაჟო", "საზღვარი", "გამშვები პუნქტი", "border", "border crossing", "customs", "checkpoint", "sabajo",
+        "граница", "таможня", "кпп", "пункт пропуска"
+      ]
+    },
+    "aerodrome": {"kind": "aerodrome", "words": ["აეროპორტი", "airport", "aeroporti", "аэропорт"]},
+    "station": {
+      "kind": "station",
+      "words": [
+        "რკინიგზის სადგური", "სადგური", "railway station", "train station", "station", "вокзал", "станция",
+        "жд вокзал"
+      ]
+    },
+    "bus_station": {"kind": "bus_station", "words": ["ავტოსადგური", "bus station", "автовокзал", "автостанция"]},
+    "hotel": {"kind": "hotel", "words": ["სასტუმრო", "hotel", "sastumro", "гостиница", "отель"]},
+    "supermarket": {"kind": "supermarket", "words": ["სუპერმარკეტი", "მარკეტი", "supermarket", "супермаркет"]},
+    "mall": {
+      "kind": "mall",
+      "words": ["მოლი", "სავაჭრო ცენტრი", "mall", "shopping mall", "shopping centre", "торговый центр", "молл"]
+    }
+  },
+  "ranking": {
+    "_note": "How the reference search (scripts/geocoder_search.py) orders results; the app should use the same. score = text*w_text + importance*w_importance + nearness*w_near (w_near only when a position is given; the weights are then divided by their sum). text: per required query word the best of exact / same stem / prefix, averaged, times (1 - coverage_weight + coverage_weight * share of the name's words the query covered), plus optional_bonus per street-type word that also matches (street-type and noise words never count in that share); city_bonus is added to the text of a row in a settlement the query names. nearness = 1 / (1 + km / near_scale_km of the table). Then, after that division: streets and addresses add street_class_prior of their road class; occupied places are multiplied by occupied_factor.",
+    "w_text": 0.55,
+    "w_importance": 0.25,
+    "w_near": 0.2,
+    "match": {"exact": 1.0, "stem": 0.92, "prefix_last": 0.8, "prefix": 0.6},
+    "coverage_weight": 0.25,
+    "optional_bonus": 0.1,
+    "city_bonus": 0.1,
+    "street_named_like_place": 0.8,
+    "number_not_in_name": 0.85,
+    "_number_note": "A query with a house number wants an address: streets, places and POIs whose names lack that number get number_not_in_name, so an address that has the number wins and its street stays the fallback ('number not found').",
+    "_street_note": "Streets are often named after places ('გუდაურის ქუჩა', 'Batumi Street'): when a place matches the whole query in full, the query has no street-type word, and the street's name is only that place's name (no other word left over) or the place is a city or town, street text scores are multiplied by street_named_like_place. A person-named street ('აკაკი წერეთლის გამზირი' for 'tsereteli') keeps its score against a small village of that name. Streets are also named '[given name] [surname] [type]' and people say only the surname, so for streets and addresses the coverage share forgives one uncovered word when the name has two or more words besides the type and the number.",
+    "near_scale_km": {"places": 40.0, "pois": 4.0, "streets": 4.0, "addresses": 4.0},
+    "candidates": {"global": 80, "local": 80, "local_box_deg": 0.3, "category": 30},
+    "occupied_note": "Places with occupied=1 are returned like any other place, flagged, with routable=false and a reason ('occupied', or 'occupation_line' for the 100 m band just outside the drawn line), so the app can explain; the app never routes to them. They are multiplied by occupied_factor, so a legal village of the same name comes first. A query that names an occupied place beside other words returns that place first.",
+    "street_class_prior": {
+      "motorway": 0.06, "trunk": 0.06, "primary": 0.06, "secondary": 0.05, "tertiary": 0.03, "motorway_link": 0.0,
+      "trunk_link": 0.0, "primary_link": 0.0, "secondary_link": 0.0, "tertiary_link": 0.0, "unclassified": 0.0,
+      "residential": 0.0, "living_street": 0.0, "pedestrian": 0.0, "road": 0.0, "construction": 0.0, "service": -0.02,
+      "track": -0.03, "busway": -0.02, "virtual": -0.01
+    },
+    "_class_note": "Added to the final score of a street (and of an address, by its street): people who say only a surname mean the avenue, not the lane next to them.",
+    "lane_words": [
+      "შესახვევი", "შეს", "ჩიხი", "გასასვლელი", "აღმართი", "დაღმართი", "lane", "dead end", "deadend", "exit", "alley",
+      "переулок", "пер", "тупик", "проезд", "съезд", "спуск", "подъем"
+    ],
+    "lane_factor": 0.9,
+    "_lane_note": "A street or address whose name has a lane word is multiplied by lane_factor unless the query has one too.",
+    "type_word_missing": 0.85,
+    "type_word_conflict": 0.6,
+    "type_groups": {
+      "road": [
+        "ქუჩა", "ქუჩ", "ქუცა", "გამზირი", "გამზ", "სანაპირო", "ხეივანი", "გზატკეცილი", "ტრასა", "ბულვარი", "შოსე",
+        "street", "str", "st", "avenue", "ave", "av", "road", "rd", "highway", "hwy", "embankment", "emb", "drive",
+        "dr", "boulevard", "blvd", "улица", "ул", "проспект", "просп", "пр", "шоссе", "набережная", "наб", "бульвар",
+        "аллея", "линия"
+      ],
+      "lane": [
+        "შესახვევი", "შეს", "ჩიხი", "გასასვლელი", "გას", "აღმართი", "დაღმართი", "lane", "ln", "blind", "alley",
+        "dead", "end", "deadend", "passage", "exit", "переулок", "пер", "тупик", "проезд", "спуск", "подъем", "съезд"
+      ],
+      "square": ["მოედანი", "მოედ", "square", "sq", "площадь", "пл"],
+      "area": [
+        "კვარტალი", "კვ", "მიკრორაიონი", "ქალაქი", "ქალ", "სოფელი", "სოფ", "დაბა", "უბანი", "დასახლება", "რაიონი",
+        "district", "quarter", "microdistrict", "city", "village", "town", "settlement", "город", "село", "деревня",
+        "микрорайон", "мкр", "квартал", "поселок", "район"
+      ]
+    },
+    "_type_note": "When the query has a street-type word ('isnis kucha', 'პეკინის II ჩიხი'), a name with none of the query's type words is multiplied by type_word_missing when it has no type word at all, not at all when its type word is of the same group (type_groups: 'rustaveli street' for a გამზირი), and by type_word_conflict when its type words are of another group (ისნის რაიონი, პეკინის გამზირი), so the street the query names comes first. A type word in no group counts as another group.",
+    "initial_bonus": 0.15,
+    "_initial_note": "A letter with a dot before a name ('ი. აბაშიძის 5') adds initial_bonus to the text score of a name with an uncovered word starting with that letter (ირაკლი).",
+    "occupied_factor": 0.9,
+    "anchor_street_min_text": 0.9,
+    "_anchor_note": "A category query's other words name its centre: the legal settlement or district with that exact name that scores best; among places with the best text within anchor_same_place_km of it, the most specific kind wins (neighbourhood, quarter, suburb, hamlet, village, town, city), because Tbilisi's suburbs are whole administrative districts whose points lie far from the neighbourhood of that name. Only when no place fits, a street whose text scores at least anchor_street_min_text. A query that names a settlement ('rustaveli batumi') searches the rest in that settlement and within reach_km x city_reach_factor (at least city_reach_min_km) of its point; other rows are left to the reading that needs every word.",
+    "anchor_same_place_km": 10.0,
+    "city_reach_factor": 1.5,
+    "city_reach_min_km": 3.0
+  },
+  "aliases": {
+    "_note": "Extra search names for places whose everyday name OSM does not carry. Each entry names the place by its name:ka (or name) and, when given, its kinds; the names become alternative names at build time (searched, never shown). Keep this short and reviewed.",
+    "entries": [
+      {
+        "name_ka": "სტეფანწმინდა",
+        "kinds": ["town", "village"],
+        "names": ["ყაზბეგი", "Kazbegi", "Qazbegi", "Казбеги", "Казбек"]
+      },
+      {"name_ka": "ორთაჭალა", "kinds": ["suburb", "quarter", "neighbourhood"], "names": ["Орточала", "Ortachala"]},
+      {"name_ka": "წყალტუბო", "kinds": ["town"], "names": ["Цхалтубо", "Tskaltubo", "Tskhaltubo"]},
+      {"name_ka": "სიღნაღი", "kinds": ["town"], "names": ["Сигнахи", "Signagi"]},
+      {
+        "name_ka": "წყნეთი",
+        "kinds": ["suburb", "quarter", "neighbourhood", "village"],
+        "names": ["Цхнети", "Tskneti"]
+      }
+    ]
+  }
+}

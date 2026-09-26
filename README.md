@@ -1,21 +1,27 @@
 # vinari-maps
 
-Offline car-routing data for Georgia, built every week for the Vinari
-navigator. A GitHub Actions workflow downloads the OpenStreetMap extract of
-Georgia, removes every road the navigator must never use, builds
+Offline map, search and car-routing data for Georgia, built every week for
+the Vinari navigator. A GitHub Actions workflow downloads the OpenStreetMap
+extract of Georgia, removes every road the navigator must never use, builds
 [Valhalla](https://github.com/valhalla/valhalla) 3.6.3 routing tiles for
 cars, proves with a safety gate that the result cannot route into the
-occupied territories, and publishes the tiles as a GitHub Release.
+occupied territories, draws the offline map and builds the offline search
+database from that same clipped extract, gates each of them, and publishes
+everything as one GitHub Release.
 
-Map data © OpenStreetMap contributors.
+Map data © OpenStreetMap contributors. Map layers © OpenMapTiles.
 
 ## What a release contains
 
 | File | What it is |
 |---|---|
 | `valhalla_tiles.tar` | Car-only Valhalla 3.6.3 tiles for Georgia, with time zones and admin areas. The app loads the whole tar (lazy tile download is broken in valhalla-mobile, issue #113). |
-| `manifest.json` | SHA-256 and size of every file, the OSM data time, the Valhalla version and image digest, the clip config version with the polygon versions it used, clip statistics, every gate result and the edge count, and the licence notice with its sources and the method (the source commit). The app must refuse a tar whose SHA-256 does not match. |
+| `manifest.json` | SHA-256 and size of every file, the OSM data time, the Valhalla version and image digest, the clip config version with the polygon versions it used, clip statistics, every gate result and the edge count, one section per further file (glyphs, sprites, basemap, geocoder) with its own gate, `credits` (one entry per part: files, attribution, licence, notice, sources), `map_attribution` (the credit the map must always show) and the method (the source commit). The app must refuse any file whose SHA-256 does not match. |
 | `nogo_zones.geojson` | The areas used by the clip: the no-go area (occupied areas plus 100 m), the outer edge of the 500 m warning band, the occupied areas as drawn, and Georgia's border. The app uses it for its own checks (see "What the app must do"). |
+| `georgia.pmtiles` | The offline map: OpenMapTiles 3.16 schema vector tiles, zoom 0 to 14, every layer (buildings, land cover, land use, water, house numbers, POIs), names in Georgian and English, drawn by Planetiler from the same safety-clipped extract as the tiles. A road the router may never use is not on the map either; place labels, buildings and POIs in the occupied areas stay. |
+| `georgia_geocoder.sqlite.gz` | The offline search database (SQLite with FTS5, gzip): places, streets, addresses and driver POIs from the same clipped extract. Places in the occupied territories are kept only to explain (occupied=1); nothing else there is searchable. `scripts/geocoder_search.py` is the reference search the app copies. |
+| `glyphs.zip` | MapLibre label glyphs for the map styles, made from Noto Sans Georgian and Noto Sans (SIL Open Font License 1.1; the licence texts are inside under `LICENSES/`). |
+| `sprites.zip` | The driving icon sprite sheets (1x and 2x) and their badge SVGs: glyphs from Maki and Temaki (CC0 1.0), badge designs MIT (texts inside under `LICENSES/`). |
 
 The release tag is the OSM data time plus the first 8 hex digits of the
 source commit, for example `osm-20260924T202102Z-3f2a1b0c`. New data or new
@@ -24,32 +30,57 @@ the same Geofabrik file. If a complete release with that tag already exists
 (the same code on the same data), the run publishes nothing; a draft or a
 release with missing files under that tag is deleted and published again.
 
-## Licence duties for anyone who ships these tiles (the Vinari app included)
+## Licence duties for anyone who ships these files (the Vinari app included)
 
-The tiles and nogo_zones.geojson are a Derivative Database of OpenStreetMap
-under the ODbL 1.0: roads are deleted, access tags rewritten, time zones and
-admin areas added, so this is not a trivial transformation.
+The tiles, nogo_zones.geojson, georgia.pmtiles and georgia_geocoder.sqlite.gz
+are Derivative Databases of OpenStreetMap under the ODbL 1.0: roads are
+deleted, access tags rewritten, time zones and admin areas added, names
+folded into search keys, so none of them is a trivial transformation.
 
-1. Credit. Show "© OpenStreetMap contributors" linked to
-   <https://www.openstreetmap.org/copyright> in a corner of the map, next to
-   it, or on a splash screen. It may collapse after an "x" tap, on map
-   interaction or after five seconds, but must then stay reachable from an
-   (i) button or the About screen
+1. Credit OpenStreetMap. Show "© OpenStreetMap contributors" linked to
+   <https://www.openstreetmap.org/copyright>. For the routing engine alone
+   it may sit in a corner of the map, next to it, or on a splash screen, and
+   may collapse after an "x" tap, on map interaction or after five seconds
+   when it then stays reachable from an (i) button or the About screen
    ([OSMF Attribution Guidelines](https://osmfoundation.org/wiki/Licence/Attribution_Guidelines)).
-   A routing engine, and an app that includes one, must credit OSM; the
-   turn instructions themselves need no credit.
+   The turn instructions themselves need no credit.
+
+   1b. The map credit. Every map drawn from georgia.pmtiles shows
+   "[© OpenMapTiles](https://openmaptiles.org/) [© OpenStreetMap contributors](https://www.openstreetmap.org/copyright)"
+   in the map corner at all times, turn-by-turn mode included, and never only
+   behind an (i) button: the OpenMapTiles schema is CC-BY 4.0 and its
+   LICENSE (v3.16) asks for a visible, linked credit in the corner of a
+   browsable map, with no collapse allowance. Take the text and the links
+   from manifest.json `map_attribution` (or set the style source's
+   `attribution` to it and draw it yourself); do not rely on MapLibre's
+   collapsible attribution control.
 2. Offer the data (ODbL 4.6). The app's About/Licences screen links to this
-   repository's Releases (the entire derivative database, free) and to the
-   source at the commit named in manifest.json (the method). Never delete a
-   release that an app version can still download, and never rewrite this
-   repository's history.
-3. Keep the notice with the data (ODbL 4.2). Ship manifest.json's licence
-   block with the tar and show it on the Licences screen.
-4. Share-alike (ODbL 4.4). Any data Vinari merges into these tiles (its own
+   repository's Releases (every derivative database above, entire and free)
+   and to the source at the commit named in manifest.json (the method).
+   Never delete a release that an app version can still download, and never
+   rewrite this repository's history.
+3. Keep the notices with the data (ODbL 4.2, CC-BY 4.0, OFL 1.1). Ship
+   manifest.json with the files, show its `credits` on the Licences screen
+   and its `map_attribution` on the map. The Licences screen lists, from
+   `credits`: OpenStreetMap (ODbL 1.0) with the OSM water polygons and
+   osm-lakelines (both ODbL); the OpenMapTiles schema (CC-BY 4.0,
+   <https://creativecommons.org/licenses/by/4.0/>); Natural Earth (public
+   domain; the credit is optional but kept); the fonts: Noto Sans Georgian
+   and Noto Sans, "Copyright 2022 The Noto Project Authors", with the full
+   SIL Open Font License 1.1 texts from glyphs.zip `LICENSES/` (they must go
+   with every copy); Maki and Temaki (CC0 1.0, nothing required, credited
+   anyway) and the badge designs (MIT, text in sprites.zip `LICENSES/`).
+   georgia.pmtiles carries its ODbL notice inside (the PMTiles
+   `description`), and the search database in its `meta` table.
+4. Share-alike (ODbL 4.4). Any data Vinari merges into these files (its own
    cameras, speed limits, closures) becomes part of the derivative database
    and must be published under the ODbL too. Keep the Roads Department
    closures as request-time exclusions in the app, never baked into the
-   tiles.
+   tiles, the map or the search database.
+5. Technical protection (ODbL 4.7). An app store package, a Play asset pack
+   or iOS Data Protection may put a copy behind technical measures; that is
+   allowed as long as the same database stays available without them, which
+   the public GitHub Release does. Keep it there.
 
 ## The safety clip, and why it exists
 
@@ -222,17 +253,36 @@ contract, which the gate tests with the settings in
    requested point.
 3. Check every returned shape against `no_go_hard` and `georgia` as a second
    layer, and refuse to navigate a route that enters either.
-4. The on-device geocoder and search drop every place inside `no_go_hard`.
+4. Search (georgia_geocoder.sqlite.gz, searched the way
+   `scripts/geocoder_search.py` does): places inside `no_go_hard` are kept
+   with `occupied=1` so the app can explain instead of routing; streets,
+   addresses and POIs there are not in the database, and no legal row has an
+   occupied settlement as its city. The reference search returns
+   `routable` (false for them) and a `reason`: `occupied` (inside the
+   occupied territories as drawn, Perevi included) or `occupation_line`
+   (Georgian-controlled, but within 100 m of the line). Show the matching
+   legal explanation for each reason, never a route, never a "navigate"
+   button. A query that names an occupied place beside other words
+   ("rustaveli sokhumi", "სოხუმის აეროპორტი") returns that place first
+   (`anchor: occupied`). For an occupied place show `label_ka` / `label_en`
+   (from name:ka, romanised by the national system) and never `name` or
+   `name_en`: there they are the de facto authorities' forms (Ленингор,
+   Sukhum). Occupied places without name:ka are left out for now (config
+   `places.occupied_without_name_ka`, an owner decision). A
+   `barrier=border_control` near the occupation line is kind
+   `line_checkpoint`, never a border crossing.
 
 When the app's request changes, change `app_request` in the same release.
 
 ## Pipeline
 
 `.github/workflows/build.yml`, weekly (Monday 03:37 UTC) and on demand.
-The token has no rights by default; each job asks for its own.
+The token has no rights by default; each job asks for its own, and every job
+but `publish` can only read.
 
-- `boundaries` (read-only): `fetch_boundaries.py --check --fail-on-change`.
-- `build` (read-only):
+- `boundaries`: `fetch_boundaries.py --check --fail-on-change`. It never
+  blocks anything else.
+- `build`:
   1. Install the pinned Python packages; run `scripts/test_clip.py`.
   2. Download `georgia-latest.osm.pbf` (following Geofabrik's redirect to
      the dated file, which must match the expected URL) and verify its `.md5`.
@@ -244,16 +294,44 @@ The token has no rights by default; each job asks for its own.
   5. Start `valhalla_service` on the tar, export all edges, run `gate.py`,
      save the service log.
   6. `manifest.py` (compares the edge count with the previous release and
-     refuses a drop of more than 20%), then hand the tar, manifest and
-     zones to the next job as a 3-day artifact.
+     refuses a drop of more than 20%) for the tar and the zones, then hand
+     on the tar, the manifest and the zones, the manifest and zones alone,
+     and the clipped extract, each as a 3-day artifact (so "Re-run failed
+     jobs" works the next day).
+- `glyphs-sprites`, beside `build` (it reads no OSM data): builds
+  maplibre/font-maker at a pinned commit, downloads the pinned Noto fonts,
+  renders and gates `glyphs.zip`; draws the badges, renders them with the
+  pinned spreet and gates `sprites.zip`.
+- `basemap`, after `build`: Java 21 (Temurin, `actions/setup-java`),
+  `build_basemap.sh` (the pinned Planetiler jar on the clipped extract, every
+  layer, `--languages=ka,en`), then `basemap.py gate` and `basemap.py
+  report`. Its step limits are 60 + 30 minutes inside a 120-minute job.
+- `geocoder`, after `build`: checks that the clipped extract and the zones
+  are the ones build's manifest lists, builds the database, runs
+  `geocoder_gate.py` (known queries through the reference search), packs it
+  and writes its report.
+- `release-manifest`, after all four: `manifest.py --extend` adds
+  glyphs.zip, sprites.zip, georgia.pmtiles and georgia_geocoder.sqlite.gz to
+  build's manifest. Every report must have passed and match its file; the
+  map's and the search database's must name the same OSM time, clipped
+  extract, clip config and commit (all four); it writes `credits` and
+  `map_attribution`.
 - `publish` (the only job with write access, no checkout, no third-party
-  code but `download-artifact`): runs only after `build` passed and only
-  on the default branch (scheduled runs always are). It checks the tar and
-  zones against the manifest's SHA-256, then `gh release create`.
+  code but `download-artifact`): runs only after every job above but
+  `boundaries` passed, and only on the default branch (scheduled runs
+  always are). It checks that the final manifest keeps everything build
+  wrote, lists exactly the six files, records a passed gate for glyphs,
+  sprites, basemap and geocoder and carries the credits; checks every file
+  against its SHA-256; and uploads exactly the files the manifest lists with
+  `gh release create`.
 
 Pins: the Valhalla image is `ghcr.io/valhalla/valhalla-scripted:3.6.3` by
-digest, the three third-party actions (`actions/checkout`,
-`actions/upload-artifact`, `actions/download-artifact`) by commit SHA, and
+digest; the four third-party actions (`actions/checkout`,
+`actions/upload-artifact`, `actions/download-artifact`,
+`actions/setup-java`) by commit SHA; font-maker by commit (its submodules
+by that commit); spreet, the Noto fonts, the Planetiler jar and the Maki
+and Temaki SVGs by SHA-256; Natural Earth and the lake lines by size (the
+OSM water polygons change every few days and are recorded, not pinned);
 the Python packages with their dependencies by version and hash in
 `requirements.lock` (`requirements.txt` lists the four direct ones).
 Tiles must be built with the same Valhalla version the app embeds
@@ -276,21 +354,34 @@ repository. This folder must become the root of its own public repository
 `peghe-b/vinari-maps`); committed inside another repository it never runs.
 After the first push, start the workflow once by hand, check the run time
 and the gate counts, and then set `MIN_EDGES` in `scripts/gate.py` to about
-70% of the `edges` value in gate_results.json.
+70% of the `edges` value in gate_results.json. That first run also
+calibrates the other thresholds that are still estimates, and they will
+probably block the first release: the basemap size band
+(`config/basemap.json` gate `min_bytes`/`max_bytes`), the geocoder row and
+kind bands (`config/geocoder_gate.json` `counts`, `kinds`), and the basemap
+job's run time, disk and memory (its "Disk use" step prints them). Watch
+the font-maker compile in `glyphs-sprites` too: it has not been built on
+ubuntu-24.04 yet.
 
 ## Running things locally
 
-Do not build tiles on a laptop; the workflow is the build machine. The unit
-tests need no map downloads, only three Python packages:
+Do not build tiles, the map or the search database on a laptop; the
+workflow is the build machine. The unit tests need no map downloads, only
+three Python packages:
 
 ```sh
 python3 -m venv .venv && .venv/bin/pip install shapely pyproj osmium
 .venv/bin/python scripts/test_clip.py
+.venv/bin/python scripts/test_basemap.py
+.venv/bin/python scripts/test_geocoder.py
+python3 scripts/test_glyphs_sprites.py        # standard library only
+python3 scripts/geocoder_fold.py --check      # the fold's shared vectors
 ```
 
 On Python 3.12 the exact CI set installs with
 `.venv/bin/pip install --only-binary :all: --require-hashes -r requirements.lock`.
-Without shapely every test is skipped rather than failed.
+Without shapely (or pyosmium) the tests that need it are skipped rather than
+failed; the workflow fails on any skip.
 
 ## Known limits
 
@@ -325,23 +416,54 @@ Without shapely every test is skipped rather than failed.
   release as the public ODbL copy the app links to.
 - GitHub disables scheduled workflows in public repositories after 60 days
   without repository activity; re-enable the workflow if that happens.
+- The geocoder's ranking was tuned on a local build over a sample of the
+  2026-09-25/26 data, not on the whole country; the known queries of
+  `config/geocoder_gate.json` are what holds it in place.
+- Owner decisions still open: what search shows for the occupied places
+  that have no name:ka (hidden until decided;
+  `places.occupied_without_name_ka` in `config/geocoder.json`), and whether
+  the badge designs stay MIT or are dedicated to CC0
+  (`config/sprites.json` changelog).
 
 ## Licences
 
-- Code in this repository: MIT (see `LICENSE`).
-- Map data and the released tiles: ODbL 1.0, © OpenStreetMap contributors.
+- Code in this repository: MIT (see `LICENSE`, which also names the data
+  and third-party files it does not cover).
+- Map data and every released database (tiles, zones, georgia.pmtiles,
+  georgia_geocoder.sqlite.gz): ODbL 1.0, © OpenStreetMap contributors.
+  georgia.pmtiles also follows the OpenMapTiles schema (CC-BY 4.0).
+- glyphs.zip: SIL Open Font License 1.1 (Noto Sans Georgian and Noto Sans,
+  Copyright 2022 The Noto Project Authors). sprites.zip: Maki and Temaki
+  glyphs CC0 1.0, badge designs MIT.
 - Tools that run in CI and never ship: Valhalla 3.6.3 image (Valhalla MIT;
   the image also carries SpatiaLite MPL-1.1/GPL-2.0+/LGPL-2.1+, GEOS
   LGPL-2.1, ZeroMQ MPL-2.0), pyosmium BSD-2-Clause, shapely BSD-3-Clause
   (its wheel bundles GEOS, LGPL-2.1), pyproj MIT, numpy BSD-3-Clause (its
   wheel bundles GCC runtime libraries under the GCC Runtime Library
   Exception), requests Apache-2.0, urllib3 MIT, idna BSD-3-Clause,
-  charset-normalizer MIT, certifi MPL-2.0, actions/checkout,
-  actions/upload-artifact, actions/download-artifact and gh (MIT), and the
-  runner's GNU tools (GPL). Running them is not distribution, and no code
-  from any of them is in the tiles.
+  charset-normalizer MIT, certifi MPL-2.0; Planetiler Apache-2.0 (the jar
+  also bundles LGPL GeoTools with the EPSG dataset terms, EDL JTS, ICU and
+  others per its NOTICE.md), planetiler-openmaptiles BSD-3-Clause, Eclipse
+  Temurin 21 GPL-2.0 with the Classpath Exception; maplibre/font-maker
+  BSD-3-Clause (LICENSE.txt checked at 714ccaea) with sdf-glyph-foundry and
+  protozero BSD-2-Clause, cxxopts and gulrak/filesystem MIT, Ubuntu's
+  FreeType (FreeType License), Boost (BSL-1.0), clang (Apache-2.0 with LLVM
+  exception) and CMake (BSD-3-Clause); spreet MIT; actions/checkout,
+  actions/upload-artifact, actions/download-artifact, actions/setup-java and
+  gh (MIT); and the runner's GNU tools (GPL). Running them is not
+  distribution, and no code from any of them is in the released files: the
+  map, the glyphs and the sprites are data made by these tools, not
+  derivatives of their code.
 - Data sources: OpenStreetMap via Geofabrik (ODbL 1.0);
   timezone-boundary-builder 2025b (data ODbL 1.0, code MIT), downloaded by
-  `valhalla_build_timezones`; re-check the release it names whenever the
-  Valhalla image pin moves.
-- Nothing GPL or AGPL ships in the tiles or the app.
+  `valhalla_build_timezones` (re-check the release it names whenever the
+  Valhalla image pin moves); OSM water polygons from osmdata.openstreetmap.de
+  (ODbL 1.0); osm-lakelines v12 (data ODbL 1.0, code MIT); Natural Earth
+  (public domain); the OpenMapTiles schema 3.16 (CC-BY 4.0).
+- When the app's map style ships: the research plans the "Vinari Day" style
+  from OSM Liberty, whose style JSON is BSD-3-Clause and whose design derives
+  from Mapbox's OSM Bright (CC-BY 3.0); add both to the Licences screen, and
+  point its Roboto font stacks at the Noto stacks of glyphs.zip so no
+  Apache-2.0 font is needed.
+- Nothing GPL or AGPL ships in the tiles, the map, the search database, the
+  glyphs, the sprites or the app.
