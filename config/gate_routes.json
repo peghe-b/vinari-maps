@@ -26,7 +26,15 @@
         }
       }
     ],
-    "_costing_options_note": "The app sends costing_options only when the owner turns on a route setting (NavRoutePrefs.costingOptions in the iOS app): none by default, 'no unpaved roads' = auto.exclude_unpaved true, 'I drive a 4x4' = auto.use_tracks 0.5. The two never go together. gate.py runs the must-fail app check once per variant (null = the default request, without the key). use_tracks 0.5 drops the default track penalty (300 s and a 4x factor), so tracks in the band get cheaper; exclude_unpaved only forbids paved to unpaved changes mid-route. When the app sends a new costing option, add it here in the same release."
+    "_costing_options_note": "The app sends costing_options only when the owner turns on a route setting (NavRoutePrefs.costingOptions in the iOS app): none by default, 'no unpaved roads' = auto.exclude_unpaved true, 'I drive a 4x4' = auto.use_tracks 0.5. The two never go together. gate.py runs the must-fail app check once per variant (null = the default request, without the key). use_tracks 0.5 drops the default track penalty (300 s and a 4x factor), so tracks in the band get cheaper; exclude_unpaved only forbids paved to unpaved changes mid-route. When the app sends a new costing option, add it here in the same release.",
+    "origin_radius": {
+      "only_with_heading": true,
+      "accuracy_factor": 2,
+      "min_m": 10,
+      "max_m": 20,
+      "heading_tolerance": null
+    },
+    "_origin_radius_note": "Reroutes only (NavRouteRequest.radius in the iOS app): when the origin carries a heading (a car moving at 2 m/s or more), it also carries radius = clamp(round(2 x GPS accuracy), 10, 20) m, 10 when the accuracy is unknown; heading_tolerance is never sent (Valhalla default 60). Why: the bundled config has loki radius 0, and when the heading filter removes the only candidate edge, loki puts it back (search.cc), so a car heading 129 degrees was routed from the cross street at 215 degrees ('turn right' in 5.4 m, Round Garden drive 2026-09-29). With radius 10 the same request starts on the 128 degree edge. The radius only widens the candidate edges around the origin; the destination keeps search_cutoff_m. gate.py sends static origins without a heading, so its requests do not change. Checked on 2026-09-29 against the bundled valhalla_tiles.tar: every must-fail app request, per costing_options variant, with an origin heading of 0, 90, 180 and 270 and radius 20 (420 requests) gave the same verdict as the same request without them (the same no-route code, or a route both times), and no route entered no_go_hard."
   },
   "summer_date": "2026-07-15T10:00",
   "winter_date": "2026-01-15T10:00",
