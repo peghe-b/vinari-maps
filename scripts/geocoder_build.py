@@ -22,7 +22,10 @@ lost, and writes one SQLite file with four searchable tables:
 
 Beside them, without a search index, the table cameras: speed and red-light
 cameras and average-speed sections for the navigator's warnings
-(scripts/geocoder_cameras.py, config cameras).
+(scripts/geocoder_cameras.py, config cameras; the sections also from the
+Ministry of Internal Affairs, config/average_speed_sections.json), and the
+table hazards: bumps and level crossings on car roads for its voice
+(scripts/geocoder_hazards.py, config hazards).
 
 Each table has an FTS5 (or FTS4, --fts fts4) index over folded search keys
 (scripts/geocoder_fold.py), and each row id is its rank by importance, so
@@ -69,10 +72,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from geocoder_fold import DEFAULT_SPEC as DEFAULT_FOLD_SPEC, Fold, romanise  # noqa: E402
 import geocoder_cameras  # noqa: E402
+import geocoder_hazards  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG = ROOT / "config" / "geocoder.json"
-SCHEMA_VERSION = 3                              # 3: the cameras table
+SCHEMA_VERSION = 4                              # 3: the cameras table; 4: hazards, ministry sections
 TABLES = ("places", "streets", "addresses", "pois")
 EARTH_R = 6371008.8
 M_PER_DEG = math.pi * EARTH_R / 180.0          # metres per degree of latitude
@@ -460,6 +464,19 @@ def load_config(path=DEFAULT_CONFIG):
         for key in ("snap_m", "parallel_m", "parallel_deg", "dedup_m", "heading_off_road_max_deg"):
             if not isinstance(cams.get(key), (int, float)) or cams[key] < 0:
                 problems.append(f"cameras.{key} must be a number >= 0")
+        sec = cams.get("sections")
+        if not isinstance(sec, dict) or not isinstance(sec.get("file"), str):
+            problems.append("cameras.sections.file must name the curated sections file")
+        else:
+            for key in ("snap_m", "line_max_deg"):
+                if not isinstance(sec.get(key), (int, float)) or sec[key] <= 0:
+                    problems.append(f"cameras.sections.{key} must be a number > 0")
+            sec_path = path.parent / sec["file"]
+            if not sec_path.is_file():
+                problems.append(f"cameras.sections.file {sec['file']!r} is missing")
+            else:
+                cams["_sections"] = geocoder_cameras.load_sections(sec_path, problems)
+    problems.extend(geocoder_hazards.check_config(config.get("hazards"), geocoder_cameras.CAR_CLASSES))
     if problems:
         raise ValueError("bad geocoder config: " + "; ".join(problems))
     return config
@@ -571,6 +588,7 @@ class Collector:
         self.street_ways = []         # id, tags, cls, coords
         self.pass_nodes = {}          # mountain pass node id -> index in pois
         self.cams = geocoder_cameras.CameraCollector(config["cameras"])
+        self.hazards = geocoder_hazards.HazardCollector(config["hazards"])
         self.stats = Counter()
 
     # which objects matter
@@ -612,10 +630,12 @@ class Collector:
 
     def node(self, osm_id, tags, lat, lon):
         self.cams.node(osm_id, tags, lat, lon)
+        self.hazards.node(osm_id, tags, lat, lon)
         self._object(f"n{osm_id}", tags, point=(lon, lat), node_id=osm_id)
 
     def way(self, osm_id, tags, refs, coords):
         self.cams.way(osm_id, tags, refs, coords)
+        self.hazards.way(osm_id, tags, refs, coords)
         if osm_id in self.member_ways:
             self.member_geom[osm_id] = (list(refs), list(coords))
         if not tags:
@@ -1391,6 +1411,8 @@ class Builder:
         self.build_pois()
         self.stats.update(self.c.cams.stats)
         self.cameras = geocoder_cameras.build_cameras(self.c.cams, self.zones, self.config["cameras"], self.stats)
+        self.stats.update(self.c.hazards.stats)
+        self.hazards = geocoder_hazards.build_hazards(self.c.hazards, self.zones, self.config["hazards"], self.stats)
         return self
 
 
@@ -1589,6 +1611,7 @@ def write_database(path, builder, meta, engine="fts5"):
     con.executemany("INSERT INTO categories VALUES (?,?,?,?)", sorted(set(cats)))
     con.executescript(INDEXES)
     counts["cameras"] = geocoder_cameras.write_cameras(con, builder.cameras)
+    counts["hazards"] = geocoder_hazards.write_hazards(con, builder.hazards)
 
     for table in TABLES:
         counts[table] = con.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
@@ -1630,6 +1653,10 @@ def base_meta(config_path, fold_path, fold, config, source=None):
         "fold_json": Path(fold_path).read_text(encoding="utf-8"),
         "config_version": config["version"],
         "config_json": Path(config_path).read_text(encoding="utf-8"),
+        "sections_json": (Path(config_path).parent / config["cameras"]["sections"]["file"]).read_text(encoding="utf-8"),
+        "sections_note": "The average-speed sections with osm 'mia-<release>-<item>' are placed from the Ministry of "
+                         "Internal Affairs of Georgia's press releases (police.ge) on OpenStreetMap km posts and "
+                         "junctions; sections_json lists each release, its date and the evidence.",
         "attribution": "© OpenStreetMap contributors",
         "attribution_url": COPYRIGHT_URL,
         "licence": "ODbL-1.0",
@@ -1695,7 +1722,8 @@ def main(argv=None):
         Path(args.report).write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"geocoder: {counts['places']} places ({counts['places_occupied']} occupied), "
           f"{counts['streets']} streets ({counts['streets_virtual']} virtual), {counts['addresses']} addresses, "
-          f"{counts['pois']} POIs, {counts['cameras']} cameras; {report['db']['bytes']} bytes, {report['seconds']} s")
+          f"{counts['pois']} POIs, {counts['cameras']} cameras, {counts['hazards']} hazards; "
+          f"{report['db']['bytes']} bytes, {report['seconds']} s")
     return 0
 
 

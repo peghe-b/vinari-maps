@@ -8,9 +8,12 @@
     "streets_virtual": [0, 20000],
     "addresses": [60000, 300000],
     "pois": [6000, 90000],
-    "cameras": [120, 600]
+    "cameras": [120, 600],
+    "hazards": [1200, 4000]
   },
   "kinds": {
+    "hazards.bump": [600, 3000],
+    "hazards.rail": [400, 2000],
     "places.city": [8, 30],
     "places.town": [40, 160],
     "places.village": [2500, 8000],
@@ -52,7 +55,8 @@
     "pois.car_dealer": [30, 250]
   },
   "_cameras_note": "The cameras table (config/geocoder.json cameras). counts.cameras: OSM had 220 highway=speed_camera nodes in Georgia on 2026-09-26 (Overpass); a local build over every camera in the Georgia box (377, of them 119 abroad and 1 in the occupied areas) kept 257. min_maxspeed_share: that build had a limit for 251 of 257 (231 from the camera, 20 from its road); min_road_share: all 257 lay within snap_m of a car road.",
-  "cameras": {"min_maxspeed_share": 0.8, "min_road_share": 0.9},
+  "cameras": {"min_maxspeed_share": 0.8, "min_road_share": 0.9, "min_sections": 20},
+  "_hazards_note": "The hazards table (config/geocoder.json hazards). counts.hazards and kinds hazards.*: Overpass on 2026-10-19 counted 1362 traffic_calming=bump/hump nodes and 1075 railway=level_crossing nodes in Georgia's OSM area (occupied regions included, before the car-road and live-railway tests); the bands leave room for both. min_sections: the curated file places 25 or more sections; fewer than 20 on their road means the roads they need changed in OSM and someone must look.",
   "indexed_share": {"places": 0.99, "streets": 0.99, "addresses": 0.99, "pois": 0.25},
   "max_drop_vs_previous": 0.2,
   "size_bytes": [3000000, 250000000],

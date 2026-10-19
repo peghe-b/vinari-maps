@@ -1,0 +1,771 @@
+{
+  "_about": "Average-speed sections of the Ministry of Internal Affairs of Georgia, from its press releases (sources), for the navigator's section warnings (scripts/geocoder_cameras.py section_rows). Each end is an OSM km post (highway=milestone) of the road the release names, whose number is the release's km and whose nearest village or junction is the one the release names, or the junction itself; 'evidence' says which. The build puts each end on the carriageway of that road which runs the section's way. Only sections whose both ends could be placed this way are here; not_placed lists the rest and why. The releases are from 2018-2021: a section may have moved or changed its limit since, and the road signs always win. This is never the full list.",
+  "version": 1,
+  "checked": "2026-10-19",
+  "sources": {
+    "mia-11892": {
+      "url": "https://mia.police.ge/ge/qutaisis-shemovlit-saavtomobilo-gzaze-sichqaris-mzomi-seqtsiuri-radarebi-amoqmedda/11892",
+      "date": "2018-08-07",
+      "title": "ქუთაისის შემოვლით საავტომობილო გზაზე სიჩქარის მზომი სექციური რადარები ამოქმედდა"
+    },
+    "mia-12210": {
+      "url": "https://mia.police.ge/ge/tbilissa-da-zugdidis-munitsipalitetshi-sichqaris-mzomi-seqtsiuri-radarebi-damatebit-10-adgilze-amoqmedda/12210",
+      "date": "2018-12-10",
+      "title": "თბილისსა და ზუგდიდში სიჩქარის მზომი „ჭკვიანი“ კამერები დამატებით 10 ადგილზე ამოქმედდა"
+    },
+    "mia-12237": {
+      "url": "https://mia.police.ge/ge/shinagan-saqmeta-saministrom-khobsa-da-rustavshi-sichqaris-mzomi-seqtsiuri-/12237",
+      "date": "2018-12-19",
+      "title": "შინაგან საქმეთა სამინისტრომ ხობსა და რუსთავში სიჩქარის მზომი სექციური „ჭკვიანი“ კამერები აამოქმედა"
+    },
+    "mia-12291": {
+      "url": "https://mia.police.ge/ge/shinagan-saqmeta-saministrom-bordjomsa-da-telavshi-sichqaris-mzomi-18-seqtsiuri-/12291",
+      "date": "2019-01-15",
+      "title": "შინაგან საქმეთა სამინისტრომ ბორჯომსა და თელავში სიჩქარის მზომი 18 სექციური „ჭკვიანი“ კამერა აამოქმედა"
+    },
+    "mia-12493": {
+      "url": "https://mia.police.ge/ge/shinagan-saqmeta-saministrom-imeretisa-da-samegrelos-regionebshi-sichqaris-kontrolis-8-akhali-seqtsia-aamoqmeda-qveknis-masshtabit-2086-videokamera-funqtsionirebs/12493",
+      "date": "2019-02-18",
+      "title": "შინაგან საქმეთა სამინისტრომ იმერეთისა და სამეგრელოს რეგიონებში სიჩქარის კონტროლის 8 ახალი სექცია აამოქმედა"
+    },
+    "mia-12678": {
+      "url": "https://mia.police.ge/ge/sagzao-modzraobis-usafrtkhoebis-gadzlierebis-miznit-acharasa-da-samegreloshi-sichqaris-mzomi-seqtsiuri-radarebis-raodenoba-gaizarda/12678",
+      "date": "2019-04-26",
+      "title": "საგზაო მოძრაობის უსაფრთხოების გაძლიერების მიზნით აჭარასა და სამეგრელოში სიჩქარის მზომი სექციური რადარების რაოდენობა გაიზარდა"
+    },
+    "mia-12722": {
+      "url": "https://mia.police.ge/ge/shinagan-saqmeta-saministro-saqartvelos-regionebshi-sichqaris-mzomi-/12722",
+      "date": "2019-05-12",
+      "title": "შინაგან საქმეთა სამინისტრო საქართველოს რეგიონებში სიჩქარის მზომი „ჭკვიანი“ კამერების მონტაჟს აგრძელებს - მცხეთა-მთიანეთში 6 ადგილზე დაემატა კამერები"
+    },
+    "mia-12894": {
+      "url": "https://mia.police.ge/ge/politsiam-sichqaris-mzomi-/12894",
+      "date": "2019-08-09",
+      "title": "პოლიციამ სიჩქარის მზომი „ჭკვიანი“ კამერები კიდევ 11 ადგილზე აამოქმედა"
+    },
+    "mia-13101": {
+      "url": "https://mia.police.ge/ge/sagzao-usafrtkhoebis-ganmtkitsebis-miznit-tbilisis-da-qvemo-qartlis-regionshi-saavtomobilo-sichqaris-kontrolis-10-seqtsia-amoqmedda/13101",
+      "date": "2019-10-30",
+      "title": "საგზაო უსაფრთხოების განმტკიცების მიზნით, თბილისსა და ქვემო ქართლის რეგიონში საავტომობილო სიჩქარის კონტროლის 10 სექცია ამოქმედდა"
+    },
+    "mia-13166": {
+      "url": "https://mia.police.ge/ge/shida-qartlis-regionshi-saavtomobilo-sichqaris-kontrolis-12-seqtsia-amoqmeddeba/13166",
+      "date": "2019-12-08",
+      "title": "შიდა ქართლის რეგიონში საავტომობილო სიჩქარის კონტროლის 12 სექცია ამოქმედდება"
+    },
+    "mia-13740": {
+      "url": "https://mia.police.ge/ge/tbilissa-da-qvemo-qartlis-regionshi-sichqaris-kontrolis-6-akhali-seqtsia-amoqmedda/13740",
+      "date": "2020-06-08",
+      "title": "თბილისსა და ქვემო ქართლის რეგიონში სიჩქარის კონტროლის 6 ახალი სექცია ამოქმედდა"
+    },
+    "mia-13896": {
+      "url": "https://mia.police.ge/ge/qvemo-qartlis-regionshi-sichqaris-kontrolis-16-akhali-seqtsia-amoqmedda/13896",
+      "date": "2020-08-21",
+      "title": "ქვემო ქართლის რეგიონში სიჩქარის კონტროლის 16 ახალი სექცია ამოქმედდა"
+    },
+    "mia-14341": {
+      "url": "https://mia.police.ge/ge/sazogadoebrivi-usafrtkhoebis-martvis-tsentri-qvemo-qartlis-regionshi-sichqaris-kontrolis-7-seqtsias-aamoqmedebs/14341",
+      "date": "2021-02-04",
+      "title": "საზოგადოებრივი უსაფრთხოების მართვის ცენტრი ქვემო ქართლის რეგიონში სიჩქარის კონტროლის 7 სექციას აამოქმედებს"
+    },
+    "mia-14433": {
+      "url": "https://mia.police.ge/ge/sazogadoebrivi-usafrtkhoebis-martvis-tsentrma-kakhetis-regionshi-sichqaris-kontrolis-4-seqtsia-aamoqmeda/14433",
+      "date": "2021-03-01",
+      "title": "საზოგადოებრივი უსაფრთხოების მართვის ცენტრმა კახეთის რეგიონში სიჩქარის კონტროლის 4 სექცია აამოქმედა"
+    },
+    "mia-14467": {
+      "url": "https://mia.police.ge/ge/sazogadoebrivi-usafrtkhoebis-martvis-tsentrma-guriis-regionshi-saavtomobilo-sichqaris-kontrolis-8-seqtsia-aamoqmeda/14467",
+      "date": "2021-03-17",
+      "title": "საზოგადოებრივი უსაფრთხოების მართვის ცენტრმა გურიის რეგიონში საავტომობილო სიჩქარის კონტროლის 8 სექცია აამოქმედა"
+    },
+    "mia-14639": {
+      "url": "https://mia.police.ge/ge/sazogadoebrivi-usafrtkhoebis-martvis-tsentrma-kakhetis-regionshi-saavtomobilo-sichqaris-kontrolis-6-seqtsia-aamoqmeda/14639",
+      "date": "2021-05-20",
+      "title": "საზოგადოებრივი უსაფრთხოების მართვის ცენტრმა კახეთის რეგიონში საავტომობილო სიჩქარის კონტროლის 6 სექცია აამოქმედა"
+    }
+  },
+  "sections": [
+    {
+      "id": "mia-13166-1",
+      "source": "mia-13166",
+      "road": {
+        "ref": "ს 1"
+      },
+      "from": {
+        "lat": 42.0167076,
+        "lon": 44.1371478,
+        "what": "გორის გადასახვევი, მიმართულება ხაშური",
+        "evidence": "OSM milestone n1072427351 (ს 1, distance=80); motorway junction 'გორი' 66 m away; nearest places: ბერბუკი village 960 m, სვენეთი village 1072 m, რეხა village 2831 m"
+      },
+      "to": {
+        "lat": 42.0188321,
+        "lon": 44.1241944,
+        "what": "ბერბუკის ხიდი",
+        "evidence": "OSM milestone n2160761272 (ს 1, distance=81); bridges 290-320 m away, Berbuki village 580 m; nearest places: ბერბუკი village 578 m, სვენეთი village 1787 m, რეხა village 2054 m"
+      },
+      "maxspeed": 110
+    },
+    {
+      "id": "mia-13166-2",
+      "source": "mia-13166",
+      "road": {
+        "ref": "ს 1"
+      },
+      "from": {
+        "lat": 42.0188321,
+        "lon": 44.1241944,
+        "what": "ბერბუკის ხიდი, მიმართულება ხაშური",
+        "evidence": "OSM milestone n2160761272 (ს 1, distance=81); bridges 290-320 m away, Berbuki village 580 m; nearest places: ბერბუკი village 578 m, სვენეთი village 1787 m, რეხა village 2054 m"
+      },
+      "to": {
+        "lat": 42.0183337,
+        "lon": 44.1012395,
+        "what": "ცხინვალის გადასახვევი",
+        "evidence": "OSM milestone n4312717836 (ს 1, distance=83); motorway junction 'გორი, ცხინვალი' 100 m away; nearest places: Vologda suburb 1632 m, Ortasheni suburb 1830 m, ორთაშენი village 1918 m"
+      },
+      "maxspeed": 110
+    },
+    {
+      "id": "mia-13166-3",
+      "source": "mia-13166",
+      "road": {
+        "ref": "ს 1"
+      },
+      "from": {
+        "lat": 42.0183337,
+        "lon": 44.1012395,
+        "what": "ცხინვალის გადასახვევი, მიმართულება ხაშური",
+        "evidence": "OSM milestone n4312717836 (ს 1, distance=83); motorway junction 'გორი, ცხინვალი' 100 m away; nearest places: Vologda suburb 1632 m, Ortasheni suburb 1830 m, ორთაშენი village 1918 m"
+      },
+      "to": {
+        "lat": 42.0135451,
+        "lon": 44.0553972,
+        "what": "გორის გვირაბი",
+        "evidence": "OSM milestone n12869248190 (ს 1, distance=87); tunnel 'გორის გვირაბი' 410 m away; nearest places: თედოწმინდა village 1827 m, ორთაშენი village 1967 m, Ortasheni suburb 3131 m"
+      },
+      "maxspeed": 110
+    },
+    {
+      "id": "mia-13166-4",
+      "source": "mia-13166",
+      "road": {
+        "ref": "ს 1"
+      },
+      "from": {
+        "lat": 42.0135451,
+        "lon": 44.0553972,
+        "what": "გორის გვირაბი, მიმართულება ხაშური",
+        "evidence": "OSM milestone n12869248190 (ს 1, distance=87); tunnel 'გორის გვირაბი' 410 m away; nearest places: თედოწმინდა village 1827 m, ორთაშენი village 1967 m, Ortasheni suburb 3131 m"
+      },
+      "to": {
+        "lat": 42.0225234,
+        "lon": 43.9744939,
+        "what": "რუისის გადასახვევი",
+        "evidence": "OSM milestone n2564071801 (ს 1, distance=94); motorway junction 'ურბნისი, რუისი' 330 m away; nearest places: ურბნისი village 1179 m, რუისი village 1597 m, ქვემო ხვედურეთი village 3910 m"
+      },
+      "maxspeed": 110
+    },
+    {
+      "id": "mia-13166-5",
+      "source": "mia-13166",
+      "road": {
+        "ref": "ს 1"
+      },
+      "from": {
+        "lat": 42.0225234,
+        "lon": 43.9744939,
+        "what": "რუისის გადასახვევი, მიმართულება ხაშური",
+        "evidence": "OSM milestone n2564071801 (ს 1, distance=94); motorway junction 'ურბნისი, რუისი' 330 m away; nearest places: ურბნისი village 1179 m, რუისი village 1597 m, ქვემო ხვედურეთი village 3910 m"
+      },
+      "to": {
+        "lat": 42.0578122,
+        "lon": 43.8906724,
+        "what": "ქარელის გადასახვევი",
+        "evidence": "OSM milestone n12869274219 (ს 1, distance=102); the ქარელი — აგარა — აგარები road crosses 520 m away; nearest places: საღოლაშენი village 784 m, არადეთი village 951 m, წვერი village 1616 m"
+      },
+      "maxspeed": 110
+    },
+    {
+      "id": "mia-13166-6",
+      "source": "mia-13166",
+      "road": {
+        "ref": "ს 1"
+      },
+      "from": {
+        "lat": 42.0578122,
+        "lon": 43.8906724,
+        "what": "ქარელის გადასახვევი, მიმართულება ხაშური",
+        "evidence": "OSM milestone n12869274219 (ს 1, distance=102); the ქარელი — აგარა — აგარები road crosses 520 m away; nearest places: საღოლაშენი village 784 m, არადეთი village 951 m, წვერი village 1616 m"
+      },
+      "to": {
+        "lat": 42.0320539,
+        "lon": 43.791144,
+        "what": "აგარის გადასახვევი",
+        "evidence": "OSM milestone n4240991427 (ს 1, distance=112); the ქარელი — აგარა — აგარები road 650 m away, Agara 2.5 km; nearest places: აგარა town 2493 m, ქვენატკოცა village 2696 m, ახალსოფელი village 2710 m"
+      },
+      "maxspeed": 110
+    },
+    {
+      "id": "mia-13166-7",
+      "source": "mia-13166",
+      "road": {
+        "ref": "ს 1"
+      },
+      "from": {
+        "lat": 42.0320539,
+        "lon": 43.791144,
+        "what": "აგარის გადასახვევი, მიმართულება თბილისი",
+        "evidence": "OSM milestone n4240991427 (ს 1, distance=112); the ქარელი — აგარა — აგარები road 650 m away, Agara 2.5 km; nearest places: აგარა town 2493 m, ქვენატკოცა village 2696 m, ახალსოფელი village 2710 m"
+      },
+      "to": {
+        "lat": 42.0578122,
+        "lon": 43.8906724,
+        "what": "ქარელის გადასახვევი",
+        "evidence": "OSM milestone n12869274219 (ს 1, distance=102); the ქარელი — აგარა — აგარები road crosses 520 m away; nearest places: საღოლაშენი village 784 m, არადეთი village 951 m, წვერი village 1616 m"
+      },
+      "maxspeed": 110
+    },
+    {
+      "id": "mia-13166-8",
+      "source": "mia-13166",
+      "road": {
+        "ref": "ს 1"
+      },
+      "from": {
+        "lat": 42.0578122,
+        "lon": 43.8906724,
+        "what": "ქარელის გადასახვევი, მიმართულება თბილისი",
+        "evidence": "OSM milestone n12869274219 (ს 1, distance=102); the ქარელი — აგარა — აგარები road crosses 520 m away; nearest places: საღოლაშენი village 784 m, არადეთი village 951 m, წვერი village 1616 m"
+      },
+      "to": {
+        "lat": 42.0225234,
+        "lon": 43.9744939,
+        "what": "რუისის გადასახვევი",
+        "evidence": "OSM milestone n2564071801 (ს 1, distance=94); motorway junction 'ურბნისი, რუისი' 330 m away; nearest places: ურბნისი village 1179 m, რუისი village 1597 m, ქვემო ხვედურეთი village 3910 m"
+      },
+      "maxspeed": 110
+    },
+    {
+      "id": "mia-13166-9",
+      "source": "mia-13166",
+      "road": {
+        "ref": "ს 1"
+      },
+      "from": {
+        "lat": 42.0225234,
+        "lon": 43.9744939,
+        "what": "რუისის გადასახვევი, მიმართულება თბილისი",
+        "evidence": "OSM milestone n2564071801 (ს 1, distance=94); motorway junction 'ურბნისი, რუისი' 330 m away; nearest places: ურბნისი village 1179 m, რუისი village 1597 m, ქვემო ხვედურეთი village 3910 m"
+      },
+      "to": {
+        "lat": 42.0135451,
+        "lon": 44.0553972,
+        "what": "გორის გვირაბი",
+        "evidence": "OSM milestone n12869248190 (ს 1, distance=87); tunnel 'გორის გვირაბი' 410 m away; nearest places: თედოწმინდა village 1827 m, ორთაშენი village 1967 m, Ortasheni suburb 3131 m"
+      },
+      "maxspeed": 110
+    },
+    {
+      "id": "mia-13166-10",
+      "source": "mia-13166",
+      "road": {
+        "ref": "ს 1"
+      },
+      "from": {
+        "lat": 42.0135451,
+        "lon": 44.0553972,
+        "what": "გორის გვირაბი, მიმართულება თბილისი",
+        "evidence": "OSM milestone n12869248190 (ს 1, distance=87); tunnel 'გორის გვირაბი' 410 m away; nearest places: თედოწმინდა village 1827 m, ორთაშენი village 1967 m, Ortasheni suburb 3131 m"
+      },
+      "to": {
+        "lat": 42.0183337,
+        "lon": 44.1012395,
+        "what": "ცხინვალის გადასახვევი",
+        "evidence": "OSM milestone n4312717836 (ს 1, distance=83); motorway junction 'გორი, ცხინვალი' 100 m away; nearest places: Vologda suburb 1632 m, Ortasheni suburb 1830 m, ორთაშენი village 1918 m"
+      },
+      "maxspeed": 110
+    },
+    {
+      "id": "mia-13166-11",
+      "source": "mia-13166",
+      "road": {
+        "ref": "ს 1"
+      },
+      "from": {
+        "lat": 42.0183337,
+        "lon": 44.1012395,
+        "what": "ცხინვალის გადასახვევი, მიმართულება თბილისი",
+        "evidence": "OSM milestone n4312717836 (ს 1, distance=83); motorway junction 'გორი, ცხინვალი' 100 m away; nearest places: Vologda suburb 1632 m, Ortasheni suburb 1830 m, ორთაშენი village 1918 m"
+      },
+      "to": {
+        "lat": 42.0188321,
+        "lon": 44.1241944,
+        "what": "ბერბუკის ხიდი",
+        "evidence": "OSM milestone n2160761272 (ს 1, distance=81); bridges 290-320 m away, Berbuki village 580 m; nearest places: ბერბუკი village 578 m, სვენეთი village 1787 m, რეხა village 2054 m"
+      },
+      "maxspeed": 110
+    },
+    {
+      "id": "mia-12722-1",
+      "source": "mia-12722",
+      "road": {
+        "ref": "ს 3"
+      },
+      "from": {
+        "lat": 41.8951648,
+        "lon": 44.7189431,
+        "what": "მცხეთა-სტეფანწმინდა-ლარსის 0 კმ (თბილისი-სენაკი-ლესელიძე ავტობანი)",
+        "evidence": "OSM milestone n12861422511 (ს 3, distance=0); the junction with ს 1 (the autobahn); nearest places: ნატახტარი village 3034 m, საგურამო village 3478 m, წეროვანი village 3685 m"
+      },
+      "to": {
+        "lat": 41.9123515,
+        "lon": 44.7253475,
+        "what": "მე-2 კმ (სოფელი ნატახტარი)",
+        "evidence": "midway between OSM milestones n12596437898 (km 1) and n12119001635 (km 3), 1998 m apart in a straight line (the road is straight there); nearest places: ნატახტარი village 1054 m, საგურამო village 3168 m, მისაქციელი village 3950 m"
+      },
+      "maxspeed": 80
+    },
+    {
+      "id": "mia-12722-2",
+      "source": "mia-12722",
+      "road": {
+        "ref": "ს 3"
+      },
+      "from": {
+        "lat": 41.9123515,
+        "lon": 44.7253475,
+        "what": "მე-2 კმ (სოფელი ნატახტარი), მიმართულება თბილისი",
+        "evidence": "midway between OSM milestones n12596437898 (km 1) and n12119001635 (km 3), 1998 m apart in a straight line (the road is straight there); nearest places: ნატახტარი village 1054 m, საგურამო village 3168 m, მისაქციელი village 3950 m"
+      },
+      "to": {
+        "lat": 41.8951648,
+        "lon": 44.7189431,
+        "what": "0 კმ (თბილისი-სენაკი-ლესელიძე ავტობანი)",
+        "evidence": "OSM milestone n12861422511 (ს 3, distance=0); the junction with ს 1 (the autobahn); nearest places: ნატახტარი village 3034 m, საგურამო village 3478 m, წეროვანი village 3685 m"
+      },
+      "maxspeed": 80
+    },
+    {
+      "id": "mia-12722-3",
+      "source": "mia-12722",
+      "road": {
+        "ref": "ს 3"
+      },
+      "from": {
+        "lat": 41.9123515,
+        "lon": 44.7253475,
+        "what": "მე-2 კმ (სოფელი ნატახტარი), მიმართულება ფასანაური",
+        "evidence": "midway between OSM milestones n12596437898 (km 1) and n12119001635 (km 3), 1998 m apart in a straight line (the road is straight there); nearest places: ნატახტარი village 1054 m, საგურამო village 3168 m, მისაქციელი village 3950 m"
+      },
+      "to": {
+        "lat": 41.9389353,
+        "lon": 44.7368349,
+        "what": "მე-5 კმ (სოფელი მისაქციელი)",
+        "evidence": "OSM milestone n12119001689 (ს 3, distance=5); Misaktsieli village node 850 m away; nearest places: მისაქციელი village 845 m, ნატახტარი village 2054 m, აღდგომლიანთკარი village 3136 m"
+      },
+      "maxspeed": 60
+    },
+    {
+      "id": "mia-12722-4",
+      "source": "mia-12722",
+      "road": {
+        "ref": "ს 3"
+      },
+      "from": {
+        "lat": 41.9389353,
+        "lon": 44.7368349,
+        "what": "მე-5 კმ (სოფელი მისაქციელი), მიმართულება თბილისი",
+        "evidence": "OSM milestone n12119001689 (ს 3, distance=5); Misaktsieli village node 850 m away; nearest places: მისაქციელი village 845 m, ნატახტარი village 2054 m, აღდგომლიანთკარი village 3136 m"
+      },
+      "to": {
+        "lat": 41.9123515,
+        "lon": 44.7253475,
+        "what": "მე-2 კმ (სოფელი ნატახტარი)",
+        "evidence": "midway between OSM milestones n12596437898 (km 1) and n12119001635 (km 3), 1998 m apart in a straight line (the road is straight there); nearest places: ნატახტარი village 1054 m, საგურამო village 3168 m, მისაქციელი village 3950 m"
+      },
+      "maxspeed": 60
+    },
+    {
+      "id": "mia-12722-5",
+      "source": "mia-12722",
+      "road": {
+        "ref": "ს 3"
+      },
+      "from": {
+        "lat": 41.9389353,
+        "lon": 44.7368349,
+        "what": "მე-5 კმ (სოფელი მისაქციელი), მიმართულება ფასანაური",
+        "evidence": "OSM milestone n12119001689 (ს 3, distance=5); Misaktsieli village node 850 m away; nearest places: მისაქციელი village 845 m, ნატახტარი village 2054 m, აღდგომლიანთკარი village 3136 m"
+      },
+      "to": {
+        "lat": 41.9736955,
+        "lon": 44.7479368,
+        "what": "მე-9 კმ (სოფელი ნაოზა)",
+        "evidence": "OSM milestone n12596439024 (ს 3, distance=9); no Naoza in OSM; the road's numbering matches at km 0, 2 and 5; nearest places: აღდგომლიანთკარი village 1060 m, ნავაზი village 1069 m, ჭოპორტი village 1939 m"
+      },
+      "maxspeed": 80
+    },
+    {
+      "id": "mia-12722-6",
+      "source": "mia-12722",
+      "road": {
+        "ref": "ს 3"
+      },
+      "from": {
+        "lat": 41.9736955,
+        "lon": 44.7479368,
+        "what": "მე-9 კმ (სოფელი ნაოზა), მიმართულება თბილისი",
+        "evidence": "OSM milestone n12596439024 (ს 3, distance=9); no Naoza in OSM; the road's numbering matches at km 0, 2 and 5; nearest places: აღდგომლიანთკარი village 1060 m, ნავაზი village 1069 m, ჭოპორტი village 1939 m"
+      },
+      "to": {
+        "lat": 41.9389353,
+        "lon": 44.7368349,
+        "what": "მე-5 კმ (სოფელი მისაქციელი)",
+        "evidence": "OSM milestone n12119001689 (ს 3, distance=5); Misaktsieli village node 850 m away; nearest places: მისაქციელი village 845 m, ნატახტარი village 2054 m, აღდგომლიანთკარი village 3136 m"
+      },
+      "maxspeed": 80
+    },
+    {
+      "id": "mia-14341-1",
+      "source": "mia-14341",
+      "road": {
+        "ref": "ს 5"
+      },
+      "from": {
+        "lat": 41.6930647,
+        "lon": 45.0331588,
+        "what": "21-ე კმ (ვაზიანის გადასახვევი, მიმართულება საგარეჯო)",
+        "evidence": "OSM milestone n12755184228 (ს 5, distance=21); Vaziani village 1.5 km away; nearest places: ვაზიანი village 1541 m, სააკაძე village 4809 m, გამარჯვება village 5727 m"
+      },
+      "to": {
+        "lat": 41.6754237,
+        "lon": 45.0945701,
+        "what": "28-ე კმ (გომბორის გადასახვევი)",
+        "evidence": "OSM milestone n12755184283 (ს 5, distance=28); no Gombori junction within 1.2 km; the road's numbering matches at km 21 and 35; nearest places: მუხროვანი village 1557 m, ვაზიანი village 3952 m, None hamlet 5123 m"
+      },
+      "maxspeed": 80
+    },
+    {
+      "id": "mia-14341-2",
+      "source": "mia-14341",
+      "road": {
+        "ref": "ს 5"
+      },
+      "from": {
+        "lat": 41.6754237,
+        "lon": 45.0945701,
+        "what": "28-ე კმ (გომბორის გადასახვევი I, მიმართულება საგარეჯო)",
+        "evidence": "OSM milestone n12755184283 (ს 5, distance=28); no Gombori junction within 1.2 km; the road's numbering matches at km 21 and 35; nearest places: მუხროვანი village 1557 m, ვაზიანი village 3952 m, None hamlet 5123 m"
+      },
+      "to": {
+        "lat": 41.6808212,
+        "lon": 45.152017,
+        "what": "33-ე კმ (სართიჭალის შესასვლელი)",
+        "evidence": "OSM milestone n12755184287 (ს 5, distance=33); the road's numbering matches at km 21 and 35; nearest places: სართიჭალა village 4182 m, მუხროვანი village 4589 m"
+      },
+      "maxspeed": 80
+    },
+    {
+      "id": "mia-14341-4",
+      "source": "mia-14341",
+      "road": {
+        "ref": "ს 5"
+      },
+      "from": {
+        "lat": 41.6808212,
+        "lon": 45.152017,
+        "what": "33-ე კმ (სართიჭალის შესასვლელი, მიმართულება საგარეჯო)",
+        "evidence": "OSM milestone n12755184287 (ს 5, distance=33); the road's numbering matches at km 21 and 35; nearest places: სართიჭალა village 4182 m, მუხროვანი village 4589 m"
+      },
+      "to": {
+        "lat": 41.6903993,
+        "lon": 45.1714992,
+        "what": "35-ე კმ (სართიჭალის გასასვლელი)",
+        "evidence": "OSM milestone n9999063142 (ს 5, distance=35); junction 'სართიჭალა' 140 m away; nearest places: სართიჭალა village 2805 m, მუღანლო village 5095 m"
+      },
+      "maxspeed": 60
+    },
+    {
+      "id": "mia-14341-5",
+      "source": "mia-14341",
+      "road": {
+        "ref": "ს 5"
+      },
+      "from": {
+        "lat": 41.6903993,
+        "lon": 45.1714992,
+        "what": "35-ე კმ (მიმართულება თბილისი)",
+        "evidence": "OSM milestone n9999063142 (ს 5, distance=35); junction 'სართიჭალა' 140 m away; nearest places: სართიჭალა village 2805 m, მუღანლო village 5095 m"
+      },
+      "to": {
+        "lat": 41.6808212,
+        "lon": 45.152017,
+        "what": "33-ე კმ",
+        "evidence": "OSM milestone n12755184287 (ს 5, distance=33); the road's numbering matches at km 21 and 35; nearest places: სართიჭალა village 4182 m, მუხროვანი village 4589 m"
+      },
+      "maxspeed": 60
+    },
+    {
+      "id": "mia-14341-6",
+      "source": "mia-14341",
+      "road": {
+        "ref": "ს 5"
+      },
+      "from": {
+        "lat": 41.6808212,
+        "lon": 45.152017,
+        "what": "33-ე კმ (სართიჭალის გასასვლელი, მიმართულება თბილისი)",
+        "evidence": "OSM milestone n12755184287 (ს 5, distance=33); the road's numbering matches at km 21 and 35; nearest places: სართიჭალა village 4182 m, მუხროვანი village 4589 m"
+      },
+      "to": {
+        "lat": 41.6754237,
+        "lon": 45.0945701,
+        "what": "28-ე კმ (გომბორის გადასახვევი)",
+        "evidence": "OSM milestone n12755184283 (ს 5, distance=28); no Gombori junction within 1.2 km; the road's numbering matches at km 21 and 35; nearest places: მუხროვანი village 1557 m, ვაზიანი village 3952 m, None hamlet 5123 m"
+      },
+      "maxspeed": 80
+    },
+    {
+      "id": "mia-14341-7",
+      "source": "mia-14341",
+      "road": {
+        "ref": "ს 5"
+      },
+      "from": {
+        "lat": 41.6754237,
+        "lon": 45.0945701,
+        "what": "28-ე კმ (გომბორის გადასახვევი, მიმართულება თბილისი)",
+        "evidence": "OSM milestone n12755184283 (ს 5, distance=28); no Gombori junction within 1.2 km; the road's numbering matches at km 21 and 35; nearest places: მუხროვანი village 1557 m, ვაზიანი village 3952 m, None hamlet 5123 m"
+      },
+      "to": {
+        "lat": 41.6930647,
+        "lon": 45.0331588,
+        "what": "21-ე კმ (ვაზიანის გადასახვევი)",
+        "evidence": "OSM milestone n12755184228 (ს 5, distance=21); Vaziani village 1.5 km away; nearest places: ვაზიანი village 1541 m, სააკაძე village 4809 m, გამარჯვება village 5727 m"
+      },
+      "maxspeed": 80
+    },
+    {
+      "id": "mia-12894-1",
+      "source": "mia-12894",
+      "road": {
+        "ref": "ს 2"
+      },
+      "from": {
+        "lat": 42.0888826,
+        "lon": 41.7071491,
+        "what": "39-ე კმ (ქალაქი ფოთი, მალთაყვის ხიდი - გრიგოლეთი)",
+        "evidence": "OSM milestone n12833154408 (ს 2, distance=39); the Maltakva highway bridge 475 m away; nearest places: მალთაყვა suburb 3623 m, მალთაყვა village 3674 m, გრიგოლეთი village 5955 m"
+      },
+      "to": {
+        "lat": 42.0261498,
+        "lon": 41.7523011,
+        "what": "47-ე კმ (სოფელი გრიგოლეთი - ურეკი)",
+        "evidence": "OSM milestone n12833154401 (ს 2, distance=47); the junction with ს 12 at Grigoleti; nearest places: გრიგოლეთი village 2018 m, წყალწმინდა village 3195 m, მაგნეტიტი suburb 3253 m"
+      },
+      "maxspeed": 90
+    },
+    {
+      "id": "mia-12894-2",
+      "source": "mia-12894",
+      "road": {
+        "ref": "ს 2"
+      },
+      "from": {
+        "lat": 42.0261498,
+        "lon": 41.7523011,
+        "what": "47-ე კმ (სოფელი გრიგოლეთი - ფოთი)",
+        "evidence": "OSM milestone n12833154401 (ს 2, distance=47); the junction with ს 12 at Grigoleti; nearest places: გრიგოლეთი village 2018 m, წყალწმინდა village 3195 m, მაგნეტიტი suburb 3253 m"
+      },
+      "to": {
+        "lat": 42.0888826,
+        "lon": 41.7071491,
+        "what": "39-ე კმ (ქალაქი ფოთი, მალთაყვის ხიდი)",
+        "evidence": "OSM milestone n12833154408 (ს 2, distance=39); the Maltakva highway bridge 475 m away; nearest places: მალთაყვა suburb 3623 m, მალთაყვა village 3674 m, გრიგოლეთი village 5955 m"
+      },
+      "maxspeed": 90
+    },
+    {
+      "id": "mia-12493-1a",
+      "source": "mia-12493",
+      "road": {
+        "ref": "შ 204"
+      },
+      "from": {
+        "lat": 42.2486822,
+        "lon": 42.6473193,
+        "what": "ქუთაისი-სამტრედიის მე-18 კმ (ქვიტირი)",
+        "evidence": "OSM milestone n12871723914 (შ 204, distance=18); Kvitiri village 1 km away; nearest places: ქვიტირი village 1000 m, სულხან-საბა suburb 1730 m, ავტოქარხანა suburb 1891 m"
+      },
+      "to": {
+        "lat": 42.2051786,
+        "lon": 42.5414003,
+        "what": "28-ე კმ (ფარცხანაყანევი)",
+        "evidence": "OSM milestone n12871723861 (შ 204, distance=28); Partskhanakanevi village 0.9 km away; nearest places: ფარცხანაყანევი village 918 m, მიწაწითელი village 3184 m, მუხიანი village 4439 m"
+      },
+      "maxspeed": 60
+    },
+    {
+      "id": "mia-12493-1b",
+      "source": "mia-12493",
+      "road": {
+        "ref": "შ 204"
+      },
+      "from": {
+        "lat": 42.2051786,
+        "lon": 42.5414003,
+        "what": "ქუთაისი-სამტრედიის 28-ე კმ (ფარცხანაყანევი)",
+        "evidence": "OSM milestone n12871723861 (შ 204, distance=28); Partskhanakanevi village 0.9 km away; nearest places: ფარცხანაყანევი village 918 m, მიწაწითელი village 3184 m, მუხიანი village 4439 m"
+      },
+      "to": {
+        "lat": 42.2486822,
+        "lon": 42.6473193,
+        "what": "მე-18 კმ (ქვიტირი)",
+        "evidence": "OSM milestone n12871723914 (შ 204, distance=18); Kvitiri village 1 km away; nearest places: ქვიტირი village 1000 m, სულხან-საბა suburb 1730 m, ავტოქარხანა suburb 1891 m"
+      },
+      "maxspeed": 60
+    },
+    {
+      "id": "mia-12210-7",
+      "source": "mia-12210",
+      "road": {
+        "ref": "ს 5"
+      },
+      "from": {
+        "lat": 41.6898337,
+        "lon": 44.9340043,
+        "what": "კახეთის გზატკეცილი, მ. გრიგორაშვილის ქუჩის კვეთა",
+        "evidence": "the ს 5 (კახეთის გზატკეცილი) node nearest to the end of მიხეილ გრიგორაშვილის ქუჩა (54 m)"
+      },
+      "to": {
+        "lat": 41.6930032,
+        "lon": 44.9615526,
+        "what": "კახეთის გზატკეცილი, ი. იუმაშევის ქუჩის კვეთა",
+        "evidence": "OSM node n280198975, shared by ს 5 (კახეთის გზატკეცილი) and ივანე იუმაშევის ქუჩა"
+      },
+      "maxspeed": 80
+    },
+    {
+      "id": "mia-12210-8",
+      "source": "mia-12210",
+      "road": {
+        "ref": "ს 5"
+      },
+      "from": {
+        "lat": 41.6930032,
+        "lon": 44.9615526,
+        "what": "კახეთის გზატკეცილი, ი. იუმაშევის ქუჩის კვეთა",
+        "evidence": "OSM node n280198975, shared by ს 5 (კახეთის გზატკეცილი) and ივანე იუმაშევის ქუჩა"
+      },
+      "to": {
+        "lat": 41.6898337,
+        "lon": 44.9340043,
+        "what": "კახეთის გზატკეცილი, მ. გრიგორაშვილის ქუჩის კვეთა",
+        "evidence": "the ს 5 (კახეთის გზატკეცილი) node nearest to the end of მიხეილ გრიგორაშვილის ქუჩა (54 m)"
+      },
+      "maxspeed": 80
+    }
+  ],
+  "not_placed": [
+    {
+      "source": "mia-13166",
+      "item": "12",
+      "why": "the release says from km 81 (Berbuki bridge) to km 81 (Gori turn): a typo, and the end is not guessed"
+    },
+    {
+      "source": "mia-14341",
+      "item": "3",
+      "why": "the same stretch and way as item 2 (km 28 to 33 toward Sagarejo, Gombori turn II): one row"
+    },
+    {
+      "source": "mia-12894",
+      "item": "3",
+      "why": "the same stretch and way as item 2 (km 47 to 39 toward Poti): one row"
+    },
+    {
+      "source": "mia-12894",
+      "item": "4-11",
+      "why": "ს 2 has no OSM km posts 52, 53 and 54 near Ureki and Natanebi, and other ს 2 posts further south follow another count"
+    },
+    {
+      "source": "mia-13896",
+      "item": "1-10",
+      "why": "ს 6 has no OSM km posts 3, 19, 26 and 29; its posts 11 and 15 stand 1.4-1.9 km from Teleti and 2.3 km from Kumisi, so the release's numbering is not confirmed there"
+    },
+    {
+      "source": "mia-13896",
+      "item": "11-14",
+      "why": "the Tbilisi bypass (ს 9) has no OSM km posts 34, 41 and 48"
+    },
+    {
+      "source": "mia-13896",
+      "item": "15-16",
+      "why": "Rustavi street junctions not checked yet"
+    },
+    {
+      "source": "mia-12210",
+      "item": "1-6",
+      "why": "the Tbilisi Sea streets (Kupradze, 414th Anapa Division, Mukhrani, Vanati) not checked yet"
+    },
+    {
+      "source": "mia-12210",
+      "item": "9-10",
+      "why": "ს 1 has no OSM km posts 320 and 325"
+    },
+    {
+      "source": "mia-12237",
+      "item": "1-6",
+      "why": "the OSM km posts 304, 310 and 315 of ს 1 stand near Khamiskuri, Tsaishi and Chitatskari, while the release puts 304 at Pirveli Maisi and 320 at Tsaishi: the release's km and the posts in OSM differ there"
+    },
+    {
+      "source": "mia-12237",
+      "item": "7-10",
+      "why": "Rustavi street junctions not checked yet"
+    },
+    {
+      "source": "mia-12291",
+      "item": "1-10",
+      "why": "Borjomi (ს 8), Vaziani-Gombori-Telavi km 65 and Akhmeta-Telavi-Bakurtsikhe km 29-32 have no OSM km posts there; Telavi junctions not checked yet"
+    },
+    {
+      "source": "mia-12493",
+      "item": "2-4",
+      "why": "Kutaisi-Tskaltubo and Poti street sections: street ends not checked yet"
+    },
+    {
+      "source": "mia-12678",
+      "item": "1-10",
+      "why": "Senaki and Batumi sections are given by house numbers"
+    },
+    {
+      "source": "mia-13101",
+      "item": "1-10",
+      "why": "the Tbilisi bypass km 3+200 to 34+350 (Zahesi, Gldanula, Martkopi, Lochini): no OSM km posts on it"
+    },
+    {
+      "source": "mia-13740",
+      "item": "1-6",
+      "why": "Marneuli highway km 1 and ს 4 km 21-22 have no OSM km posts; Rustavi junctions not checked yet"
+    },
+    {
+      "source": "mia-14433",
+      "item": "1-4",
+      "why": "given only by villages (Matani, Duisi, Jokolo), no km or junction"
+    },
+    {
+      "source": "mia-14467",
+      "item": "1-8",
+      "why": "Sajavakho-Chokhatauri-Ozurgeti-Kobuleti has no OSM km posts there"
+    },
+    {
+      "source": "mia-14639",
+      "item": "1-6",
+      "why": "Kvareli-Mukuzani and Telavi-Shakriani have no OSM km posts"
+    },
+    {
+      "source": "mia-11892",
+      "item": "1-10",
+      "why": "the Kutaisi bypass release gives no section ends"
+    }
+  ]
+}

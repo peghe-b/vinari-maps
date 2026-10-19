@@ -43,14 +43,34 @@ The occupied territories: a camera (or either end of a section) inside
 no_go_hard or outside Georgia's border is dropped, like every other row of
 the database; one in the 100-500 m band has band=1.
 
+Average-speed sections from the Ministry of Internal Affairs
+(config/average_speed_sections.json, cameras.sections): OSM in Georgia has
+almost none (two section cameras without an end in September 2026), while
+the ministry's press releases on police.ge name each section by its road, its
+start and end (a km post or a junction) and its limit. The file holds only
+the sections whose both ends could be placed with confidence (an OSM km post
+of that road whose number matches and whose nearby village or junction is
+the one the release names, or the junction itself), with the evidence, the
+release and its date; the rest are listed there as not placed. Here each end
+is put on the carriageway of that road (cameras.sections.road: its ref or
+name) that runs the section's way, within cameras.sections.snap_m: a km post
+often stands on the other carriageway of a divided road. A section whose end
+finds no such road (the road was rebuilt or renamed in OSM) is dropped and
+counted (sections_unplaced), never guessed. Its limit is the release's,
+unless the road's own explicit OSM limit there says otherwise: then none
+(sections_maxspeed_conflict), since one of the two is out of date. Such a row
+has osm 'mia-<release>-<item>', maxspeed_src 'mia' and heading_src 'section'.
+
 OSM has only part of Georgia's cameras. The table is a hint for the driver,
 never a complete list, and the road signs always have priority.
 
 Stdlib only, so the unit tests need nothing installed.
 """
 
+import json
 import math
 from collections import Counter
+from pathlib import Path
 
 EARTH_R = 6371008.8
 M_PER_DEG = math.pi * EARTH_R / 180.0
@@ -234,6 +254,8 @@ class CameraCollector:
         self.cameras = {}             # node id -> {"id", "lat", "lon", "tags"}
         self.relations = []           # (relation id, tags, [(type, ref, role)])
         self.watch = set()            # member node ids whose location is needed
+        self.sections = list(cfg.get("_sections") or ())   # curated sections (load_sections)
+        self.anchors = [(s[e]["lat"], s[e]["lon"]) for s in self.sections for e in ("from", "to")]
         self.coords = {}              # member node id -> (lon, lat)
         self.roads = {}               # way id -> {"id", "tags", "refs", "coords"}
         self.cell = float(cfg.get("grid_deg", 0.02))
@@ -266,6 +288,7 @@ class CameraCollector:
             grid = {}
             points = [(c["lat"], c["lon"]) for c in self.cameras.values()]
             points += [(lat, lon) for lon, lat in self.coords.values()]
+            points += self.anchors
             for lat, lon in points:
                 grid.setdefault((int(math.floor(lat / self.cell)), int(math.floor(lon / self.cell))), True)
             self._grid = grid
@@ -281,7 +304,7 @@ class CameraCollector:
                         self.coords[ref] = c
                         if self._grid is not None:
                             self._grid[(int(math.floor(c[1] / self.cell)), int(math.floor(c[0] / self.cell)))] = True
-        if tags.get("highway") not in CLASS_RANK or not (self.cameras or self.coords):
+        if tags.get("highway") not in CLASS_RANK or not (self.cameras or self.coords or self.anchors):
             return
         pts = [c for c in coords if c is not None]
         if not pts:
@@ -603,18 +626,28 @@ def build_cameras(collector, zones, cfg, stats=None):
         row.update(road_fields(road))
         rows.append(row)
 
+    rows.extend(section_rows(c, index, zones, cfg, stats))
     rows = dedup(rows, cfg["dedup_m"], stats)
-    rows.sort(key=lambda r: (r["osm"][0], int(r["osm"][1:])))
+    rows.sort(key=lambda r: osm_key(r["osm"]))
     for kind in KINDS:
         stats[f"cameras_{kind}"] = sum(1 for r in rows if r["kind"] == kind)
     stats["cameras"] = len(rows)
     return rows
 
 
+def osm_key(osm):
+    """Sort key of an osm value: nodes (n123), relations (r123), then the
+    ministry's sections (mia-<release>-<item>)."""
+    if osm.startswith("mia-"):
+        release, item = osm[4:].split("-")
+        return (2, int(release), int(item.rstrip("ab")), item[-1] if item[-1] in "ab" else "")
+    return (0 if osm[0] == "n" else 1, int(osm[1:]), 0, "")
+
+
 def dedup(rows, radius_m, stats):
     """One camera drawn twice (same kind, same heading or both without one,
-    within radius_m) is kept once: the copy with a speed limit, then the
-    lowest id."""
+    within radius_m) is kept once: the copy with a section end, then with a
+    speed limit, then the lowest id."""
     def same(a, b):
         if a["kind"] != b["kind"] or (a["heading"] is None) != (b["heading"] is None):
             return False
@@ -623,7 +656,7 @@ def dedup(rows, radius_m, stats):
         return distance_m(a["lat"], a["lon"], b["lat"], b["lon"]) <= radius_m
 
     def rank(r):
-        return (r["maxspeed"] is None, r["osm"][0] != "n", int(r["osm"][1:]))
+        return (r["end_lat"] is None, r["maxspeed"] is None, r["osm"][0] != "n", osm_key(r["osm"]))
 
     kept = []
     for r in sorted(rows, key=rank):
@@ -632,6 +665,125 @@ def dedup(rows, radius_m, stats):
             continue
         kept.append(r)
     return kept
+
+
+# ---------------------------------------------------------------------------
+# The ministry's average-speed sections (config/average_speed_sections.json)
+# ---------------------------------------------------------------------------
+
+def road_matches(tags, want):
+    """want: {"ref": "ს 1"} or {"name": "..."}: the road's ref list holds the
+    ref, or its name or name:ka is the name."""
+    if "ref" in want:
+        return want["ref"] in tag_values(tags.get("ref"))
+    return want.get("name") in (tags.get("name"), tags.get("name:ka"))
+
+
+def project(lat, lon, a, b):
+    """The point of segment a-b (each (lon, lat)) nearest to (lat, lon), as (lat, lon)."""
+    kx = M_PER_DEG * math.cos(math.radians(lat))
+    ax, ay = (a[0] - lon) * kx, (a[1] - lat) * M_PER_DEG
+    bx, by = (b[0] - lon) * kx, (b[1] - lat) * M_PER_DEG
+    dx, dy = bx - ax, by - ay
+    t = 0.0 if dx == dy == 0 else max(0.0, min(1.0, -(ax * dx + ay * dy) / (dx * dx + dy * dy)))
+    return lat + (ay + t * dy) / M_PER_DEG, lon + (ax + t * dx) / kx
+
+
+def place_on_road(index, lat, lon, travel, want, snap_m, line_max_deg):
+    """(Road, (lat, lon) on it, heading) for the carriageway of the wanted road
+    nearest to (lat, lon) within snap_m that carries traffic going `travel`
+    (degrees): its line within line_max_deg of travel, and a one-way road only
+    in its own direction. None when there is no such road."""
+    for d, road, i in index.near(lat, lon, snap_m):
+        if not road_matches(road["tags"], want):
+            continue
+        line = seg_bearing(road, i)
+        along = onto_line(travel, line)
+        if angle_diff(travel, along) > line_max_deg:
+            continue                      # a ramp or a crossing piece of the same road
+        sign = oneway_sign(road["tags"])
+        if sign:
+            allowed = line if sign > 0 else (line + 180.0) % 360.0
+            if angle_diff(allowed, along) > 90.0:
+                continue                  # the other carriageway
+        point = project(lat, lon, road["coords"][i], road["coords"][i + 1])
+        return Road(road, line, 0.0, False), point, along
+    return None
+
+
+def section_rows(collector, index, zones, cfg, stats):
+    """Rows for the curated sections whose both ends land on their road."""
+    scfg = cfg.get("sections") or {}
+    out = []
+    for s in collector.sections:
+        a, b = s["from"], s["to"]
+        travel = bearing(a["lat"], a["lon"], b["lat"], b["lon"])
+        start = place_on_road(index, a["lat"], a["lon"], travel, s["road"], scfg["snap_m"], scfg["line_max_deg"])
+        end = place_on_road(index, b["lat"], b["lon"], travel, s["road"], scfg["snap_m"], scfg["line_max_deg"])
+        if start is None or end is None:
+            stats["sections_unplaced"] += 1
+            stats[f"sections_unplaced {s['id']}"] += 1
+            continue
+        road, (lat, lon), heading = start
+        _, (end_lat, end_lon), _ = end
+        zone, end_zone = zones.zone(lat, lon), zones.zone(end_lat, end_lon)
+        if {zone, end_zone} & {"outside", "occupied", "buffer"}:
+            stats["sections_dropped_zone"] += 1
+            continue
+        speed, src = s["maxspeed"], "mia"
+        own = road_maxspeed(road, heading, cfg)
+        if own is not None and own != speed:
+            stats["sections_maxspeed_conflict"] += 1
+            stats[f"sections_maxspeed_conflict {s['id']} {speed} vs {own}"] += 1
+            speed, src = None, None
+        row = {"osm": s["id"], "kind": "average_speed", "lat": round(lat, 7), "lon": round(lon, 7),
+               "end_lat": round(end_lat, 7), "end_lon": round(end_lon, 7),
+               "maxspeed": speed, "maxspeed_src": src,
+               "heading": int(round(heading)) % 360, "heading_src": "section",
+               "band": 1 if "band" in (zone, end_zone) else 0}
+        row.update(road_fields(road))
+        out.append(row)
+        stats["sections_placed"] += 1
+    return out
+
+
+def load_sections(path, problems):
+    """The curated sections file: its sections (each with id, road, from, to,
+    maxspeed) after a check; problems collects what is wrong."""
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    sources = data.get("sources") or {}
+    out, seen = [], set()
+    for s in data.get("sections") or []:
+        sid = s.get("id", "")
+        parts = sid.split("-")
+        if (len(parts) != 3 or parts[0] != "mia" or not parts[1].isdigit()
+                or not parts[2].rstrip("ab").isdigit() or len(parts[2]) - len(parts[2].rstrip("ab")) > 1):
+            problems.append(f"sections: id {sid!r} must be mia-<release>-<item> (the item with a or b when "
+                            f"one item of the release names both directions)")
+            continue
+        if sid in seen:
+            problems.append(f"sections: {sid} twice")
+        seen.add(sid)
+        if s.get("source") not in sources:
+            problems.append(f"sections: {sid} names an unknown source {s.get('source')!r}")
+        road = s.get("road")
+        if not isinstance(road, dict) or len(road) != 1 or not (road.get("ref") or road.get("name")):
+            problems.append(f"sections: {sid} road must be {{'ref': ...}} or {{'name': ...}}")
+        for end in ("from", "to"):
+            e = s.get(end) or {}
+            if not (isinstance(e.get("lat"), (int, float)) and 40.9 <= e["lat"] <= 43.7
+                    and isinstance(e.get("lon"), (int, float)) and 39.8 <= e["lon"] <= 46.9):
+                problems.append(f"sections: {sid} {end} must have lat and lon in Georgia")
+            if not e.get("what") or not e.get("evidence"):
+                problems.append(f"sections: {sid} {end} needs 'what' (the release's words) and 'evidence'")
+        if not isinstance(s.get("maxspeed"), int) or not 20 <= s["maxspeed"] <= 130:
+            problems.append(f"sections: {sid} maxspeed must be km/h (20-130)")
+        if not problems:
+            gap = distance_m(s["from"]["lat"], s["from"]["lon"], s["to"]["lat"], s["to"]["lon"])
+            if not 200 <= gap <= 40000:
+                problems.append(f"sections: {sid} is {round(gap)} m long (the app takes 0.2-40 km)")
+        out.append(s)
+    return out
 
 
 def write_cameras(con, rows):

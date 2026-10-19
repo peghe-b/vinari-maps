@@ -26,6 +26,7 @@ sys.path.insert(0, str(HERE))
 import geocoder_build as gb  # noqa: E402
 import geocoder_cameras as gc  # noqa: E402
 import geocoder_gate as gg  # noqa: E402
+import geocoder_hazards as gh  # noqa: E402
 from geocoder_fold import Fold  # noqa: E402
 
 try:
@@ -328,16 +329,18 @@ class DatabaseTest(unittest.TestCase):
                          (270, 60))
         counts, _ = gg.db_counts(self.con)
         self.assertEqual(counts["cameras"], 12)
-        self.assertEqual(gb.SCHEMA_VERSION, 3)
+        self.assertEqual(gb.SCHEMA_VERSION, 4)
 
     def test_gate_accepts_good_rows(self):
         # Three of the made-up cameras stand far from every road on purpose.
-        gate = dict(GATE, cameras=dict(GATE["cameras"], min_road_share=0.75))
+        gate = dict(GATE, cameras=dict(GATE["cameras"], min_road_share=0.75, min_sections=0))
         problems, detail = gg.check_cameras(self.con, CONFIG, gate)
         self.assertEqual(problems, [])
         self.assertEqual((detail["rows"], detail["on_road"], detail["with_maxspeed"]), (12, 9, 11))
-        problems, _ = gg.check_cameras(self.con, CONFIG, GATE)
+        problems, _ = gg.check_cameras(self.con, CONFIG, dict(GATE, cameras=dict(GATE["cameras"], min_sections=0)))
         self.assertEqual(problems, ["cameras: only 9 of 12 lie on a car road (at least 90%)"])
+        problems, _ = gg.check_cameras(self.con, CONFIG, gate | {"cameras": dict(gate["cameras"], min_sections=1)})
+        self.assertTrue(any("ministry's sections" in p for p in problems), problems)
 
     def test_gate_refuses_bad_rows(self):
         for sql, word in (("UPDATE cameras SET heading = 400 WHERE osm = 'n102'", "heading"),
@@ -375,6 +378,260 @@ class DatabaseTest(unittest.TestCase):
         problems, _ = gg.check_zones(self.con, z)
         self.assertTrue(any(p.startswith("cameras: 1 rows inside no_go_hard") for p in problems), problems)
         self.assertTrue(any(p.startswith("camera section ends: 1 rows inside") for p in problems), problems)
+
+
+# ---------------------------------------------------------------------------
+# The ministry's sections (cameras.sections, config/average_speed_sections.json)
+# ---------------------------------------------------------------------------
+
+SEC_NODES = {
+    # W11 eastbound and W12 westbound: a divided road ref ს 9 along 41.95, the carriageways 33 m apart
+    1101: (44.30, 41.95), 1102: (44.40, 41.95), 1201: (44.40, 41.9503), 1202: (44.30, 41.9503),
+    # W13: a two-way ს 9 piece that runs into the occupied area
+    1301: (44.59, 42.30), 1302: (44.70, 42.30),
+    # W14: a ramp of ს 9 leaving W11 to the north-east
+    1401: (44.35, 41.95), 1402: (44.352, 41.953),
+}
+SEC_WAYS = {
+    11: ([1101, 1102], {"highway": "motorway", "ref": "ს 9", "oneway": "yes", "maxspeed": "90"}),
+    12: ([1201, 1202], {"highway": "motorway", "ref": "ს 9", "oneway": "yes"}),
+    13: ([1301, 1302], {"highway": "trunk", "ref": "ს 9"}),
+    14: ([1401, 1402], {"highway": "motorway_link", "ref": "ს 9", "oneway": "yes"}),
+}
+
+
+def sec(sid, road, a, b, kmh):
+    return {"id": sid, "source": "mia-1", "road": road, "maxspeed": kmh,
+            "from": {"lat": a[0], "lon": a[1], "what": "start", "evidence": "test"},
+            "to": {"lat": b[0], "lon": b[1], "what": "end", "evidence": "test"}}
+
+
+SECTIONS = [
+    # the km post stands on the westbound carriageway; the section runs east: onto W11
+    sec("mia-1-1", {"ref": "ს 9"}, (41.9503, 44.31), (41.9503, 44.38), 90),
+    # the same stretch westbound: onto W12
+    sec("mia-1-2", {"ref": "ს 9"}, (41.95, 44.38), (41.95, 44.31), 90),
+    # W11 says 90, the release 70: no limit
+    sec("mia-1-3", {"ref": "ს 9"}, (41.95, 44.33), (41.95, 44.36), 70),
+    # no road with this ref: not placed
+    sec("mia-1-4", {"ref": "ს 99"}, (41.95, 44.31), (41.95, 44.38), 90),
+    # by name on the two-way W1 (name:ka გზა, maxspeed 80)
+    sec("mia-1-5", {"name": "გზა"}, (41.80, 44.12), (41.80, 44.14), 80),
+    # ends in the occupied area: dropped
+    sec("mia-1-6", {"ref": "ს 9"}, (42.30, 44.592), (42.30, 44.65), 60),
+]
+
+
+def section_collector(sections=SECTIONS):
+    c = gb.Collector(dict(CONFIG, cameras=dict(CFG, _sections=sections)))
+    for way_id, (refs, tags) in sorted((WAYS | SEC_WAYS).items()):
+        nodes = NODES | SEC_NODES
+        c.way(way_id, tags, refs, [nodes[r] for r in refs])
+    return c
+
+
+class SectionsTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.stats = Counter()
+        cfg = dict(CFG, _sections=SECTIONS)
+        cls.rows = {r["osm"]: r for r in gc.build_cameras(section_collector().cams, zones(), cfg, cls.stats)}
+
+    def test_each_end_goes_onto_the_carriageway_of_its_way(self):
+        east, west = self.rows["mia-1-1"], self.rows["mia-1-2"]
+        self.assertEqual((east["lat"], east["lon"], east["end_lat"], east["end_lon"]), (41.95, 44.31, 41.95, 44.38))
+        self.assertEqual((east["heading"], east["heading_src"], east["road_dist_m"]), (90, "section", 0.0))
+        self.assertEqual((west["lat"], west["end_lat"], west["heading"]), (41.9503, 41.9503, 270))
+        self.assertEqual((east["kind"], east["road_class"], east["road_ref"]), ("average_speed", "motorway", "ს 9"))
+
+    def test_limit_from_the_release_unless_the_road_says_otherwise(self):
+        self.assertEqual((self.rows["mia-1-1"]["maxspeed"], self.rows["mia-1-1"]["maxspeed_src"]), (90, "mia"))
+        self.assertEqual((self.rows["mia-1-2"]["maxspeed"], self.rows["mia-1-2"]["maxspeed_src"]), (90, "mia"))
+        self.assertEqual((self.rows["mia-1-3"]["maxspeed"], self.rows["mia-1-3"]["maxspeed_src"]), (None, None))
+        self.assertEqual(self.stats["sections_maxspeed_conflict"], 1)
+
+    def test_by_name_on_a_two_way_road(self):
+        r = self.rows["mia-1-5"]
+        self.assertEqual((r["lat"], r["lon"], r["end_lon"], r["heading"], r["maxspeed"]), (41.8, 44.12, 44.14, 90, 80))
+
+    def test_unplaced_and_occupied_are_dropped(self):
+        self.assertNotIn("mia-1-4", self.rows)
+        self.assertNotIn("mia-1-6", self.rows)
+        self.assertEqual(self.stats["sections_unplaced"], 1)
+        self.assertEqual(self.stats["sections_unplaced mia-1-4"], 1)
+        self.assertEqual(self.stats["sections_dropped_zone"], 1)
+        self.assertEqual(self.stats["sections_placed"], 4)
+
+    def test_a_ramp_of_the_same_road_is_not_taken(self):
+        # a post 3 m from the ramp's start, 11 m from the main line: the ramp leaves at 27 degrees
+        s = sec("mia-2-1", {"ref": "ს 9"}, (41.9501, 44.3501), (41.95, 44.39), 90)
+        rows = {r["osm"]: r for r in gc.build_cameras(section_collector([s]).cams, zones(), dict(CFG, _sections=[s]))}
+        self.assertEqual((rows["mia-2-1"]["lat"], rows["mia-2-1"]["road_class"]), (41.95, "motorway"))
+
+    def test_rows_sort_after_osm(self):
+        rows = gc.build_cameras(section_collector().cams, zones(), dict(CFG, _sections=SECTIONS))
+        osm = [r["osm"] for r in rows]
+        self.assertEqual(osm[-4:], ["mia-1-1", "mia-1-2", "mia-1-3", "mia-1-5"])
+        self.assertEqual(gc.osm_key("mia-12210-7"), (2, 12210, 7, ""))
+        self.assertLess(gc.osm_key("mia-12493-1a"), gc.osm_key("mia-12493-1b"))
+
+    def test_the_file_is_checked(self):
+        good = sec("mia-3-1", {"ref": "ს 9"}, (41.95, 44.31), (41.95, 44.38), 90)
+        cases = {
+            "id": dict(good, id="mia-x"),
+            "source": dict(good, source="nowhere"),
+            "road": dict(good, road={"ref": "ს 9", "name": "x"}),
+            "lat and lon": dict(good, to={"lat": 50, "lon": 44.3, "what": "x", "evidence": "y"}),
+            "evidence": dict(good, to={"lat": 41.95, "lon": 44.38, "what": "x"}),
+            "maxspeed": dict(good, maxspeed=150),
+            "long": dict(good, to={"lat": 41.95, "lon": 44.3101, "what": "x", "evidence": "y"}),
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "s.json"
+            for word, s in cases.items():
+                with self.subTest(word=word):
+                    path.write_text(json.dumps({"sources": {"mia-1": {}}, "sections": [s]}), encoding="utf-8")
+                    problems = []
+                    gc.load_sections(path, problems)
+                    self.assertTrue(any(word in p for p in problems), (word, problems))
+            path.write_text(json.dumps({"sources": {"mia-1": {}}, "sections": [dict(good, id="mia-1-1", source="mia-1")]}),
+                            encoding="utf-8")
+            problems = []
+            self.assertEqual(len(gc.load_sections(path, problems)), 1)
+            self.assertEqual(problems, [])
+
+    def test_the_curated_file(self):
+        """Every section of config/average_speed_sections.json: a known source,
+        an official police.ge page, ends 0.2-40 km apart, both directions of a
+        stretch where the release has both."""
+        data = json.loads((HERE.parent / "config" / CONFIG["cameras"]["sections"]["file"]).read_text(encoding="utf-8"))
+        self.assertGreaterEqual(len(CFG["_sections"]), GATE["cameras"]["min_sections"])
+        for name, src in data["sources"].items():
+            self.assertTrue(src["url"].startswith("https://mia.police.ge/") or src["url"].startswith("https://police.ge/"),
+                            name)
+            self.assertRegex(src["date"], r"^20[12][0-9]-[01][0-9]-[0-3][0-9]$")
+        for s in CFG["_sections"]:
+            self.assertIn(s["source"], data["sources"])
+            self.assertEqual(s["id"].split("-")[1], s["source"].split("-")[1])
+        self.assertTrue(all(n.get("why") for n in data["not_placed"]))
+
+
+# ---------------------------------------------------------------------------
+# Hazards (scripts/geocoder_hazards.py)
+# ---------------------------------------------------------------------------
+
+HZ_NODES = {
+    # W21: a residential street running north; 2101 a bump on it, 2102 a bump on its junction with the primary W29
+    2100: (44.40, 41.60), 2101: (44.40, 41.601), 2102: (44.40, 41.602), 2103: (44.40, 41.603),
+    2901: (44.399, 41.602), 2902: (44.401, 41.602),
+    # W22: a footway with a hump on it
+    2201: (44.41, 41.60), 2202: (44.41, 41.601), 2203: (44.41, 41.602),
+    # W23 (a tertiary running east) and W24 (a live railway running north) cross at 2302
+    2301: (44.42, 41.61), 2302: (44.421, 41.61), 2303: (44.422, 41.61), 2401: (44.421, 41.609), 2402: (44.421, 41.611),
+    # W25 (a secondary running east) and W26 (an abandoned railway) cross at 2502
+    2501: (44.43, 41.62), 2502: (44.431, 41.62), 2503: (44.432, 41.62), 2601: (44.431, 41.619), 2602: (44.431, 41.621),
+    # W27: a road with a level crossing tag but no railway in the extract
+    2701: (44.44, 41.63), 2702: (44.441, 41.63), 2703: (44.442, 41.63),
+    # W28: in the occupied area; W30: in the band
+    2801: (44.70, 42.30), 2802: (44.70, 42.301), 2803: (44.70, 42.302),
+    3001: (44.597, 42.30), 3002: (44.597, 42.301), 3003: (44.597, 42.302),
+}
+HZ_WAYS = {
+    21: ([2100, 2101, 2102, 2103], {"highway": "residential"}),
+    29: ([2901, 2102, 2902], {"highway": "primary"}),
+    22: ([2201, 2202, 2203], {"highway": "footway"}),
+    23: ([2301, 2302, 2303], {"highway": "tertiary"}),
+    24: ([2401, 2302, 2402], {"railway": "rail"}),
+    25: ([2501, 2502, 2503], {"highway": "secondary"}),
+    26: ([2601, 2502, 2602], {"railway": "abandoned"}),
+    27: ([2701, 2702, 2703], {"highway": "unclassified"}),
+    28: ([2801, 2802, 2803], {"highway": "residential"}),
+    30: ([3001, 3002, 3003], {"highway": "residential"}),
+}
+HZ_TAGS = {
+    2101: {"traffic_calming": "bump"}, 2102: {"traffic_calming": "hump"}, 2202: {"traffic_calming": "hump"},
+    2302: {"railway": "level_crossing"}, 2502: {"railway": "level_crossing"}, 2702: {"railway": "level_crossing"},
+    2802: {"traffic_calming": "bump"}, 3002: {"traffic_calming": "bump"},
+    2203: {"traffic_calming": "table"},            # not a kind the app speaks
+}
+
+
+def hazard_collector():
+    c = gb.Collector(CONFIG)
+    for node_id, tags in sorted(HZ_TAGS.items()):
+        lon, lat = HZ_NODES[node_id]
+        c.node(node_id, tags, lat, lon)
+    for way_id, (refs, tags) in sorted(HZ_WAYS.items()):
+        c.way(way_id, tags, refs, [HZ_NODES[r] for r in refs])
+    return c
+
+
+class HazardsTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.stats = Counter()
+        cls.rows = {r["osm"]: r for r in gh.build_hazards(hazard_collector().hazards, zones(),
+                                                            CONFIG["hazards"], cls.stats)}
+
+    def test_kept_rows(self):
+        self.assertEqual(sorted(self.rows), ["n2101", "n2102", "n2302", "n3002"])
+        self.assertEqual(self.rows["n2101"], {"osm": "n2101", "kind": "bump", "lat": 41.601, "lon": 44.4,
+                                              "road_bearing": 0, "road_class": "residential", "band": 0})
+
+    def test_a_junction_node_takes_the_bigger_road(self):
+        self.assertEqual((self.rows["n2102"]["kind"], self.rows["n2102"]["road_class"],
+                          self.rows["n2102"]["road_bearing"]), ("bump", "primary", 90))
+
+    def test_level_crossing_needs_a_live_railway(self):
+        self.assertEqual((self.rows["n2302"]["kind"], self.rows["n2302"]["road_bearing"]), ("rail", 90))
+        self.assertNotIn("n2502", self.rows)
+        self.assertNotIn("n2702", self.rows)
+        self.assertEqual(self.stats["hazards_rail_without_live_railway"], 2)
+
+    def test_off_road_occupied_and_band(self):
+        self.assertNotIn("n2202", self.rows)
+        self.assertEqual(self.stats["hazards_off_road_bump"], 1)
+        self.assertNotIn("n2802", self.rows)
+        self.assertEqual(self.stats["hazards_dropped_occupied"], 1)
+        self.assertEqual(self.rows["n3002"]["band"], 1)
+        self.assertEqual((self.stats["hazards_bump"], self.stats["hazards_rail"], self.stats["hazards"]), (3, 1, 4))
+
+    def test_config_is_checked(self):
+        self.assertEqual(gh.check_config(CONFIG["hazards"], gc.CAR_CLASSES), [])
+        for change, word in (({"kinds": {"bump": [{"traffic_calming": ["bump"]}]}}, "exactly bump and rail"),
+                             ({"road_classes": ["footway"]}, "car road classes"),
+                             ({"live_railways": []}, "live_railways")):
+            with self.subTest(word=word):
+                problems = gh.check_config(dict(CONFIG["hazards"], **change), gc.CAR_CLASSES)
+                self.assertTrue(any(word in p for p in problems), problems)
+
+    def test_table_and_gate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Path(tmp) / "g.sqlite"
+            builder = gb.Builder(CONFIG, FOLD, zones(), hazard_collector()).build()
+            with quiet():
+                counts, _ = gb.write_database(db, builder, {"schema_version": gb.SCHEMA_VERSION})
+            self.assertEqual(counts["hazards"], 4)
+            con = sqlite3.connect(str(db))
+            try:
+                self.assertEqual([r[1] for r in con.execute("PRAGMA table_info(hazards)")], ["id", *gh.COLUMNS])
+                problems, detail = gg.check_hazards(con, CONFIG)
+                self.assertEqual(problems, [])
+                self.assertEqual(detail["kinds"], {"bump": 3, "rail": 1})
+                counts, kinds = gg.db_counts(con)
+                self.assertEqual((counts["hazards"], kinds["hazards.bump"], kinds["hazards.rail"]), (4, 3, 1))
+                for sql, word in (("UPDATE hazards SET kind = 'pothole' WHERE osm = 'n2101'", "kind"),
+                                  ("UPDATE hazards SET road_bearing = 200 WHERE osm = 'n2101'", "road"),
+                                  ("UPDATE hazards SET road_class = 'footway' WHERE osm = 'n2101'", "road"),
+                                  ("UPDATE hazards SET osm = 'n2101'", "twice")):
+                    with self.subTest(word=word):
+                        con.execute("SAVEPOINT s")
+                        con.execute(sql)
+                        problems, _ = gg.check_hazards(con, CONFIG)
+                        self.assertTrue(any(word in p for p in problems), (word, problems))
+                        con.execute("ROLLBACK TO s")
+            finally:
+                con.close()
 
 
 OSM_XML = """<?xml version="1.0" encoding="UTF-8"?>

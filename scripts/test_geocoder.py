@@ -1292,9 +1292,11 @@ class PoiCoverageTest(unittest.TestCase):
         gate = json.loads(gg.DEFAULT_GATE.read_text(encoding="utf-8"))
         poi_kinds = {r["kind"] for r in CONFIG["pois"]["rules"]} | {"line_checkpoint"}
         place_kinds = set(CONFIG["places"]["kinds"])
+        hazard_kinds = set(CONFIG["hazards"]["kinds"])
         for key in gate["kinds"]:
             table, kind = key.split(".")
-            self.assertIn(kind, poi_kinds if table == "pois" else place_kinds, key)
+            known = {"pois": poi_kinds, "places": place_kinds, "hazards": hazard_kinds}[table]
+            self.assertIn(kind, known, key)
         for case in gate["queries"]:
             if "kind" in case:
                 tables = case["table"] if isinstance(case["table"], list) else [case["table"]]
@@ -1394,7 +1396,7 @@ class GateTest(unittest.TestCase):
             "counts": {"places": [1, 100]}, "kinds": {}, "indexed_share": {"places": 0.99},
             "max_drop_vs_previous": 0.2, "size_bytes": [1000, 10 ** 8], "max_query_ms": 5000,
             "near": self.GATE["near"], "queries": queries,
-            "cameras": {"min_maxspeed_share": 0.8, "min_road_share": 0.9}}))
+            "cameras": {"min_maxspeed_share": 0.8, "min_road_share": 0.9, "min_sections": 0}}))
         results = Path(self.tmp.name) / "results.json"
         with quiet():
             code = gg.main(["--db", str(self.db), "--zones", str(self.zones_path), "--results", str(results),

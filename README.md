@@ -328,6 +328,30 @@ abroad are dropped, and the geocoder gate checks the count (120 to 600), the
 zones and every value. OSM has only part of the real cameras: the app
 must never call the list complete, and road signs always win.
 
+Average-speed sections of the Ministry of Internal Affairs. OSM in Georgia
+has almost no sections with both ends, so `config/average_speed_sections.json`
+adds the ones the ministry's press releases on police.ge describe (road, from
+km or junction, to km or junction, limit) whose both ends could be placed
+with confidence: an OSM km post (`highway=milestone`) of that road whose
+number is the release's km and whose nearby village or junction is the one
+the release names, or the junction itself. Each section keeps its release,
+date and evidence; the file also lists the sections not placed and why. The
+build puts each end on the carriageway of its road that runs the section's
+way (`cameras.sections`), drops a section whose road is gone, and takes the
+release's limit unless the road's own OSM limit there differs (then none).
+These rows have `osm` `mia-<release>-<item>`, `maxspeed_src` `mia` and
+`heading_src` `section`. The releases are from 2018 to 2021, so a section may
+have changed since; this is never the full list.
+
+Road hazards (schema 4). A table `hazards` (no search index; schema in
+`scripts/geocoder_hazards.py`, rules in `config/geocoder.json` `hazards`) for
+the navigator's voice: `traffic_calming=bump/hump` (kind `bump`) and
+`railway=level_crossing` (kind `rail`) nodes that lie on a car road, a
+crossing only while a live railway runs over it, with the road's line through
+the node (`road_bearing`, 0..179) so the app can tell a bump on its road from
+one on a crossing street. Occupied and foreign ones are dropped like every
+other row. Apps before schema 4 never read the table.
+
 ## Pipeline
 
 `.github/workflows/build.yml`, weekly (Monday 03:37 UTC) and on demand.
