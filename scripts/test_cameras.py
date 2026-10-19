@@ -272,6 +272,51 @@ class CamerasTest(unittest.TestCase):
         self.assertNotIn("n190", self.rows)             # its device is the section, not a camera of its own
         self.assertIsNone(self.rows["n102"]["end_lat"])
 
+    def test_a_limit_no_camera_on_that_road_can_have(self):
+        # 2026-10-05: 13 Tbilisi camera nodes said maxspeed=20, one on the Kakheti
+        # highway (trunk) where its neighbours say 80, and the app read "twenty".
+        extra = {801: dict(CAM, maxspeed="20"),          # on W1 (primary, 80): the road's 80
+                 802: dict(CAM, maxspeed="20"),          # on W6 (tertiary, no limit): none
+                 803: dict(CAM, maxspeed="30"),          # on W1: below half of 80, the road's 80
+                 804: dict(CAM, maxspeed="40"),          # on W1: half of 80, a school zone stays
+                 805: dict(CAM, maxspeed="30")}          # on W2 (motorway, no limit): below 40, none
+        where = {801: (44.105, 41.80), 802: (44.205, 41.65), 803: (44.115, 41.80), 804: (44.135, 41.80),
+                 805: (44.30, 41.715)}
+        saved = dict(CAMERAS), dict(CAMERA_AT)
+        CAMERAS.update(extra)
+        CAMERA_AT.update(where)
+        try:
+            stats = Counter()
+            rows = build(stats)
+        finally:
+            CAMERAS.clear()
+            CAMERAS.update(saved[0])
+            CAMERA_AT.clear()
+            CAMERA_AT.update(saved[1])
+        got = {k: (rows[k]["maxspeed"], rows[k]["maxspeed_src"], rows[k]["road_class"])
+               for k in ("n801", "n802", "n803", "n804", "n805")}
+        self.assertEqual(got, {"n801": (80, "road", "primary"), "n802": (None, None, "tertiary"),
+                               "n803": (80, "road", "primary"), "n804": (40, "camera", "primary"),
+                               "n805": (None, None, "motorway")})
+        self.assertEqual(stats["maxspeed_implausible"], 4)
+        self.assertEqual(self.rows["n170"]["maxspeed"], 40)       # 40 on a secondary without a limit stays
+
+    def test_plausible_maxspeed(self):
+        from types import SimpleNamespace as Road
+        stats = Counter()
+        living = Road(tags={"highway": "living_street"}, along=0.0)
+        trunk = Road(tags={"highway": "trunk", "maxspeed": "80"}, along=0.0)
+        bare = Road(tags={"highway": "trunk"}, along=0.0)
+        self.assertEqual(gc.plausible_maxspeed(20, "camera", living, None, CFG, stats), (20, "camera"))
+        self.assertEqual(gc.plausible_maxspeed(20, "camera", None, None, CFG, stats), (20, "camera"))
+        self.assertEqual(gc.plausible_maxspeed(20, "camera", trunk, None, CFG, stats), (80, "road"))
+        self.assertEqual(gc.plausible_maxspeed(20, "camera", bare, None, CFG, stats), (None, None))
+        self.assertEqual(gc.plausible_maxspeed(20, "road", Road(tags={"highway": "trunk", "maxspeed": "20"}, along=0.0),
+                                               None, CFG, stats), (None, None))
+        self.assertEqual(gc.plausible_maxspeed(60, "relation", trunk, None, CFG, stats), (60, "relation"))
+        self.assertEqual(gc.plausible_maxspeed(None, None, trunk, None, CFG, stats), (None, None))
+        self.assertEqual(stats["maxspeed_implausible"], 3)
+
     def test_junction_node_belongs_to_the_bigger_road(self):
         r = self.rows["n601"]
         self.assertEqual((r["road_class"], r["road_bearing"], r["heading"]), ("secondary", 0, 0))
@@ -296,13 +341,18 @@ class CamerasTest(unittest.TestCase):
         self.assertEqual(rows["n102"]["heading"], 90)
 
     def test_config_is_checked(self):
-        bad = json.loads(json.dumps(CONFIG))
-        bad["cameras"]["relations"]["maxspeed"] = "speed"
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "g.json"
-            path.write_text(json.dumps(bad), encoding="utf-8")
-            with self.assertRaises(ValueError):
-                gb.load_config(path)
+        for spoil in (lambda c: c["relations"].update(maxspeed="speed"),
+                      lambda c: c.update(maxspeed_floor={"footway": 30}),
+                      lambda c: c.update(maxspeed_floor={"trunk": "30"}),
+                      lambda c: c.pop("maxspeed_floor"),
+                      lambda c: c.update(maxspeed_road_ratio=2)):
+            bad = json.loads(json.dumps(CONFIG))
+            spoil(bad["cameras"])
+            with tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp) / "g.json"
+                path.write_text(json.dumps(bad), encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    gb.load_config(path)
 
 
 class DatabaseTest(unittest.TestCase):

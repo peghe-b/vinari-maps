@@ -464,6 +464,13 @@ def load_config(path=DEFAULT_CONFIG):
         for key in ("snap_m", "parallel_m", "parallel_deg", "dedup_m", "heading_off_road_max_deg"):
             if not isinstance(cams.get(key), (int, float)) or cams[key] < 0:
                 problems.append(f"cameras.{key} must be a number >= 0")
+        floor = cams.get("maxspeed_floor")
+        if not isinstance(floor, dict) or not all(
+                k in geocoder_cameras.CAR_CLASSES and isinstance(v, int) and 0 <= v <= 150 for k, v in floor.items()):
+            problems.append("cameras.maxspeed_floor must map car road classes to km/h (0-150)")
+        ratio = cams.get("maxspeed_road_ratio")
+        if not isinstance(ratio, (int, float)) or not 0 <= ratio <= 1:
+            problems.append("cameras.maxspeed_road_ratio must be a number from 0 to 1")
         sec = cams.get("sections")
         if not isinstance(sec, dict) or not isinstance(sec.get("file"), str):
             problems.append("cameras.sections.file must name the curated sections file")

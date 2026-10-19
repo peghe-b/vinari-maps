@@ -43,6 +43,14 @@ The occupied territories: a camera (or either end of a section) inside
 no_go_hard or outside Georgia's border is dropped, like every other row of
 the database; one in the 100-500 m band has band=1.
 
+A speed limit no camera on its road can have is a tagging slip, not a sign
+(cameras.maxspeed_floor, cameras.maxspeed_road_ratio; plausible_maxspeed): in
+September 2026, 13 Tbilisi camera nodes from one mapper said maxspeed=20, one
+of them on the Kakheti highway (trunk S5) where the cameras beside it say 80,
+and the navigator read "twenty" to drivers on an 80 road. Then the road's own
+limit is used when it is plausible, else none: no number is better than a
+wrong one.
+
 Average-speed sections from the Ministry of Internal Affairs
 (config/average_speed_sections.json, cameras.sections): OSM in Georgia has
 almost none (two section cameras without an end in September 2026), while
@@ -498,6 +506,27 @@ def road_maxspeed(road, heading, cfg):
     return parse_maxspeed(road.tags.get("maxspeed"), zones, allowed)
 
 
+def plausible_maxspeed(speed, src, road, heading, cfg, stats):
+    """(speed, src) unless no camera on that road can have it: below the
+    road class's floor (cameras.maxspeed_floor; residential and smaller roads
+    have none, 20 is real in a living zone), or a camera's or relation's own
+    limit below cameras.maxspeed_road_ratio of its road's explicit limit
+    (20 on a 60 road). Then the road's own limit when it passes the floor,
+    else (None, None)."""
+    if speed is None:
+        return speed, src
+    road_class = road.tags.get("highway") if road is not None else None
+    floor = cfg["maxspeed_floor"].get(road_class, 0)
+    road_speed = road_maxspeed(road, heading, cfg) if src != "road" else None
+    below_road = road_speed is not None and speed < road_speed * cfg["maxspeed_road_ratio"]
+    if speed >= floor and not below_road:
+        return speed, src
+    stats["maxspeed_implausible"] += 1
+    if road_speed is not None and road_speed >= floor:
+        return road_speed, "road"
+    return None, None
+
+
 def road_fields(road):
     if road is None:
         return {"road_bearing": None, "road_dist_m": None, "road_class": None, "road_ref": None, "road_name": None}
@@ -615,6 +644,7 @@ def build_cameras(collector, zones, cfg, stats=None):
             speed, speed_src = road_maxspeed(road, heading, cfg), "road"
         if speed is None:
             speed_src = None
+        speed, speed_src = plausible_maxspeed(speed, speed_src, road, heading, cfg, stats)
         stats[f"maxspeed_{speed_src or 'none'}"] += 1
 
         row = {"osm": it["osm"], "kind": it["kind"], "lat": round(it["lat"], 7), "lon": round(it["lon"], 7),
