@@ -47,6 +47,9 @@ except ImportError:
 
 FOLD = Fold.load()
 CONFIG = gb.load_config()
+# The clip config the release must be bound to: the repository's own (geocoder_release.py
+# refuses a database built for another), so the fixtures follow config/clip.json.
+CLIP_VERSION = json.loads((HERE.parent / "config" / "clip.json").read_text(encoding="utf-8"))["version"]
 
 
 @contextlib.contextmanager
@@ -188,7 +191,7 @@ def build_db(path, engine="fts5"):
     builder = gb.Builder(CONFIG, FOLD, zones(), synthetic_collector()).build()
     meta = gb.base_meta(gb.DEFAULT_CONFIG, gb.DEFAULT_FOLD_SPEC, FOLD, CONFIG,
                         {"sha256": "ab" * 32, "bytes": 1, "timestamp": "2026-09-24T20:21:02Z",
-                         "tag": "osm-20260924T202102Z-3f2a1b0c", "clip_config_version": 2})
+                         "tag": "osm-20260924T202102Z-3f2a1b0c", "clip_config_version": CLIP_VERSION})
     gb.write_database(path, builder, meta, engine=engine)
     return builder
 
@@ -1417,7 +1420,7 @@ class ReleaseTest(unittest.TestCase):
         self.manifest = {"schema": 2, "tag": self.TAG, "files": [{"name": "valhalla_tiles.tar", "bytes": 1,
                                                                    "sha256": "00" * 32}],
                          "osm": {"timestamp": "2026-09-24T20:21:02Z", "clipped_pbf": {"sha256": "ab" * 32}},
-                         "clip": {"config_version": 2}, "source_commit": self.COMMIT}
+                         "clip": {"config_version": CLIP_VERSION}, "source_commit": self.COMMIT}
         self.write(gate=self.gate, manifest=self.manifest)
         (tmp / "report.json").write_text(json.dumps({"db": {"sha256": sha}, "source": {"sha256": "ab" * 32}}))
 
@@ -1452,7 +1455,7 @@ class ReleaseTest(unittest.TestCase):
         self.assertNotIn("Do not encrypt", report["licence_note"])
         self.assertEqual(report["credit_sources"][0]["licence"], "ODbL-1.0")
         self.assertEqual(report["binds_to"], {"osm_timestamp": "2026-09-24T20:21:02Z",
-                                              "clipped_pbf_sha256": "ab" * 32, "clip_config_version": 2,
+                                              "clipped_pbf_sha256": "ab" * 32, "clip_config_version": CLIP_VERSION,
                                               "source_commit": self.COMMIT})
 
     def test_refuses_another_extract_or_a_failed_gate(self):
