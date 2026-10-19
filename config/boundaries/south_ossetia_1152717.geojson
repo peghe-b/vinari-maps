@@ -1,5 +1,5 @@
 {"type":"FeatureCollection","features":[{"type":"Feature",
-"properties":{"osm_type": "relation", "osm_id": 1152717, "osm_version": 158, "osm_timestamp": "2026-09-18T13:34:57Z", "name": "Хуссар Ирыстон - Южная Осетия", "name:en": "South Ossetia", "name:ka": "ცხინვალის რეგიონი", "fetched_at": "2026-09-25T22:23:28+00:00", "source": "https://api.openstreetmap.org/api/0.6/relation/1152717/full", "licence": "ODbL 1.0, (c) OpenStreetMap contributors", "used_as": "South Ossetia / Tskhinvali region (occupied)"},
+"properties":{"osm_type": "relation", "osm_id": 1152717, "osm_version": 159, "osm_timestamp": "2026-10-14T20:51:01Z", "name": "Хуссар Ирыстон - Южная Осетия", "name:en": "South Ossetia", "name:ka": "ცხინვალის რეგიონი", "fetched_at": "2026-10-19T11:11:24+00:00", "source": "https://api.openstreetmap.org/api/0.6/relation/1152717/full", "licence": "ODbL 1.0, (c) OpenStreetMap contributors", "used_as": "South Ossetia / Tskhinvali region (occupied)"},
 "geometry":{"type":"MultiPolygon","coordinates":[
 [
 [
@@ -656,6 +656,7 @@
 [44.3914353,42.4593318],
 [44.3902293,42.4598388],
 [44.3846571,42.4589927],
+[44.3837247,42.4628028],
 [44.383631,42.4630824],
 [44.3839478,42.4662365],
 [44.382843,42.4688897],
