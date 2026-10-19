@@ -493,6 +493,19 @@ class SpotCheckTest(unittest.TestCase):
                 self.assertTrue(basemap.check_city_label(pm, missing)[0])
             finally:
                 pm.close()
+        # the app's coalesce: a place without name:ka still reads by its name (Kutaisi, 2026-10-16), and a name:ka
+        # that is not the city's never passes on the strength of its name
+        label = config["gate"]["city_labels"][0]
+        x, y = basemap.lonlat_to_tile(label["lon"], label["lat"], label["zoom"])
+        only_name = encode_tile({"place": [(basemap.POINT, {"class": "city", "name": label["name_ka"], "name:en": "x"}, [[(2048, 2048)]])]})
+        other_ka = encode_tile({"place": [(basemap.POINT, {"class": "city", "name": label["name_ka"], "name:ka": "სხვა"}, [[(2048, 2048)]])]})
+        for tile, ok in ((only_name, True), (other_ka, False)):
+            with tempfile.TemporaryDirectory() as tmp:
+                pm = self.archive(tmp, {(label["zoom"], x, y): tile})
+                try:
+                    self.assertEqual(not basemap.check_city_label(pm, label)[0], ok)
+                finally:
+                    pm.close()
 
     def test_poor_tile_fails(self):
         spot = basemap.load_config()["gate"]["spot_checks"][1]     # Batumi, wants the sea

@@ -956,7 +956,10 @@ def check_spot(pm, spot):
 
 
 def check_city_label(pm, label):
-    """The city's Georgian label must be in its tile or a neighbour."""
+    """The city's Georgian label must be in its tile or a neighbour, read as the app's styles read it:
+    name:ka, else name (["coalesce", ["get", "name:ka"], ["get", "name"]] in the place layers). On 2026-10-16
+    an OSM edit stripped name:ka (and every non-Latin name) from Kutaisi's place node while its name stayed
+    ქუთაისი: the app still showed ქუთაისი, but this check refused the weekly release."""
     z = label["zoom"]
     cx, cy = lonlat_to_tile(label["lon"], label["lat"], z)
     for dx in (0, -1, 1):
@@ -970,7 +973,7 @@ def check_city_label(pm, label):
             if layer is None:
                 continue
             for _, props, _ in layer.features():
-                if props.get("name:ka") == label["name_ka"]:
+                if (props.get("name:ka") or props.get("name")) == label["name_ka"]:
                     return [], {"tile": f"{z}/{cx + dx}/{cy + dy}", "class": props.get("class"),
                                 "name": props.get("name"), "name:en": props.get("name:en")}
     return [f"no place label with name:ka {label['name_ka']} at zoom {z} near "
