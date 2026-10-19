@@ -426,126 +426,6 @@
       "maxspeed": 80
     },
     {
-      "id": "mia-14341-1",
-      "source": "mia-14341",
-      "road": {
-        "ref": "ს 5"
-      },
-      "from": {
-        "lat": 41.6930647,
-        "lon": 45.0331588,
-        "what": "21-ე კმ (ვაზიანის გადასახვევი, მიმართულება საგარეჯო)",
-        "evidence": "OSM milestone n12755184228 (ს 5, distance=21); Vaziani village 1.5 km away; nearest places: ვაზიანი village 1541 m, სააკაძე village 4809 m, გამარჯვება village 5727 m"
-      },
-      "to": {
-        "lat": 41.6754237,
-        "lon": 45.0945701,
-        "what": "28-ე კმ (გომბორის გადასახვევი)",
-        "evidence": "OSM milestone n12755184283 (ს 5, distance=28); no Gombori junction within 1.2 km; the road's numbering matches at km 21 and 35; nearest places: მუხროვანი village 1557 m, ვაზიანი village 3952 m, None hamlet 5123 m"
-      },
-      "maxspeed": 80
-    },
-    {
-      "id": "mia-14341-2",
-      "source": "mia-14341",
-      "road": {
-        "ref": "ს 5"
-      },
-      "from": {
-        "lat": 41.6754237,
-        "lon": 45.0945701,
-        "what": "28-ე კმ (გომბორის გადასახვევი I, მიმართულება საგარეჯო)",
-        "evidence": "OSM milestone n12755184283 (ს 5, distance=28); no Gombori junction within 1.2 km; the road's numbering matches at km 21 and 35; nearest places: მუხროვანი village 1557 m, ვაზიანი village 3952 m, None hamlet 5123 m"
-      },
-      "to": {
-        "lat": 41.6808212,
-        "lon": 45.152017,
-        "what": "33-ე კმ (სართიჭალის შესასვლელი)",
-        "evidence": "OSM milestone n12755184287 (ს 5, distance=33); the road's numbering matches at km 21 and 35; nearest places: სართიჭალა village 4182 m, მუხროვანი village 4589 m"
-      },
-      "maxspeed": 80
-    },
-    {
-      "id": "mia-14341-4",
-      "source": "mia-14341",
-      "road": {
-        "ref": "ს 5"
-      },
-      "from": {
-        "lat": 41.6808212,
-        "lon": 45.152017,
-        "what": "33-ე კმ (სართიჭალის შესასვლელი, მიმართულება საგარეჯო)",
-        "evidence": "OSM milestone n12755184287 (ს 5, distance=33); the road's numbering matches at km 21 and 35; nearest places: სართიჭალა village 4182 m, მუხროვანი village 4589 m"
-      },
-      "to": {
-        "lat": 41.6903993,
-        "lon": 45.1714992,
-        "what": "35-ე კმ (სართიჭალის გასასვლელი)",
-        "evidence": "OSM milestone n9999063142 (ს 5, distance=35); junction 'სართიჭალა' 140 m away; nearest places: სართიჭალა village 2805 m, მუღანლო village 5095 m"
-      },
-      "maxspeed": 60
-    },
-    {
-      "id": "mia-14341-5",
-      "source": "mia-14341",
-      "road": {
-        "ref": "ს 5"
-      },
-      "from": {
-        "lat": 41.6903993,
-        "lon": 45.1714992,
-        "what": "35-ე კმ (მიმართულება თბილისი)",
-        "evidence": "OSM milestone n9999063142 (ს 5, distance=35); junction 'სართიჭალა' 140 m away; nearest places: სართიჭალა village 2805 m, მუღანლო village 5095 m"
-      },
-      "to": {
-        "lat": 41.6808212,
-        "lon": 45.152017,
-        "what": "33-ე კმ",
-        "evidence": "OSM milestone n12755184287 (ს 5, distance=33); the road's numbering matches at km 21 and 35; nearest places: სართიჭალა village 4182 m, მუხროვანი village 4589 m"
-      },
-      "maxspeed": 60
-    },
-    {
-      "id": "mia-14341-6",
-      "source": "mia-14341",
-      "road": {
-        "ref": "ს 5"
-      },
-      "from": {
-        "lat": 41.6808212,
-        "lon": 45.152017,
-        "what": "33-ე კმ (სართიჭალის გასასვლელი, მიმართულება თბილისი)",
-        "evidence": "OSM milestone n12755184287 (ს 5, distance=33); the road's numbering matches at km 21 and 35; nearest places: სართიჭალა village 4182 m, მუხროვანი village 4589 m"
-      },
-      "to": {
-        "lat": 41.6754237,
-        "lon": 45.0945701,
-        "what": "28-ე კმ (გომბორის გადასახვევი)",
-        "evidence": "OSM milestone n12755184283 (ს 5, distance=28); no Gombori junction within 1.2 km; the road's numbering matches at km 21 and 35; nearest places: მუხროვანი village 1557 m, ვაზიანი village 3952 m, None hamlet 5123 m"
-      },
-      "maxspeed": 80
-    },
-    {
-      "id": "mia-14341-7",
-      "source": "mia-14341",
-      "road": {
-        "ref": "ს 5"
-      },
-      "from": {
-        "lat": 41.6754237,
-        "lon": 45.0945701,
-        "what": "28-ე კმ (გომბორის გადასახვევი, მიმართულება თბილისი)",
-        "evidence": "OSM milestone n12755184283 (ს 5, distance=28); no Gombori junction within 1.2 km; the road's numbering matches at km 21 and 35; nearest places: მუხროვანი village 1557 m, ვაზიანი village 3952 m, None hamlet 5123 m"
-      },
-      "to": {
-        "lat": 41.6930647,
-        "lon": 45.0331588,
-        "what": "21-ე კმ (ვაზიანის გადასახვევი)",
-        "evidence": "OSM milestone n12755184228 (ს 5, distance=21); Vaziani village 1.5 km away; nearest places: ვაზიანი village 1541 m, სააკაძე village 4809 m, გამარჯვება village 5727 m"
-      },
-      "maxspeed": 80
-    },
-    {
       "id": "mia-12894-1",
       "source": "mia-12894",
       "road": {
@@ -674,8 +554,8 @@
     },
     {
       "source": "mia-14341",
-      "item": "3",
-      "why": "the same stretch and way as item 2 (km 28 to 33 toward Sagarejo, Gombori turn II): one row"
+      "item": "1-7",
+      "why": "ს 5 between km 21 and 35 is a motorway in OSM now (maxspeed 110 at km 28, 33 and 35), while the 2021 release gives 80 and 60 (Sartichala entry and exit): the road looks rebuilt since the release, so these sections may no longer exist or have other limits; a build on 2026-10-19 also found no carriageway for km 21"
     },
     {
       "source": "mia-12894",
