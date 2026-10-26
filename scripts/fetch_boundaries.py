@@ -28,9 +28,13 @@ Two modes:
               way's or the relation's. Prints the largest shift in metres.
               For a hand-made polygon it also checks that the live sources
               still lie inside it. Never changes a file. With
-              --fail-on-change the exit code is 1 when anything moved, so a
-              separate CI job fails and GitHub emails the owner; the build
-              itself keeps using the frozen copies, which stay safe to use.
+              --fail-on-change the exit code is 1 when anything moved OR
+              could not be checked (an object that is broken in OSM, for
+              example a ring that does not close, or a download that kept
+              failing), so a separate CI job fails and GitHub emails the
+              owner; the build itself keeps using the frozen copies, which
+              stay safe to use. "Could not check" is never silent: a broken
+              relation can hide a real move of the line.
 
 Refresh needs only the Python standard library. The metre figures in
 --check need shapely and pyproj; without them it still compares hashes.
@@ -80,16 +84,28 @@ def osm_sources(entry):
     return list(entry["derived_from"]) if entry.get("hand_made") else [entry]
 
 
-def join_rings(way_node_lists):
+class BrokenInOSM(ValueError):
+    """The object exists in OSM but its geometry cannot be built (a ring
+    that does not close, holes we do not support). Not a network problem:
+    it stays broken until a mapper fixes it."""
+
+
+def join_rings(way_node_lists, way_ids=None):
     """Join open ways (lists of node ids) into closed rings.
 
-    Ways may point either way round. Raises ValueError if a ring cannot be
-    closed, which means the relation is broken in OSM and must not be used.
+    Ways may point either way round. Raises BrokenInOSM (a ValueError) if a
+    ring cannot be closed, which means the relation is broken in OSM and
+    must not be used. With way_ids (same order as way_node_lists) the
+    message also names the way whose loose end is the node.
     """
-    remaining = [list(w) for w in way_node_lists if len(w) >= 2]
+    pairs = [(list(w), wid) for w, wid in zip(way_node_lists, way_ids or [None] * len(way_node_lists))
+             if len(w) >= 2]
+    remaining = [w for w, _ in pairs]
+    remaining_ids = [wid for _, wid in pairs]
     rings = []
     while remaining:
         ring = remaining.pop(0)
+        last_way = remaining_ids.pop(0)
         while ring[0] != ring[-1]:
             end = ring[-1]
             for i, way in enumerate(remaining):
@@ -100,8 +116,10 @@ def join_rings(way_node_lists):
                     ring.extend(reversed(way[:-1]))
                     break
             else:
-                raise ValueError(f"ring cannot be closed at node {end}")
+                where = f" (loose end of way {last_way})" if last_way is not None else ""
+                raise BrokenInOSM(f"ring cannot be closed at node {end}{where}")
             remaining.pop(i)
+            last_way = remaining_ids.pop(i)
         if len(ring) < 4:
             raise ValueError("ring with fewer than 3 distinct points")
         rings.append(ring)
@@ -144,6 +162,7 @@ def fetch_polygon(entry, timeout=120):
     if kind == "way":
         top = ways[oid]
         outer_ways = [top["nodes"]]
+        outer_way_ids = [oid]
     else:
         top = next(e for e in elements if e["type"] == "relation" and e["id"] == oid)
         roles = {m["role"] for m in top["members"] if m["type"] == "way"}
@@ -151,12 +170,17 @@ def fetch_polygon(entry, timeout=120):
             # None of our areas has holes today. Supporting them needs a
             # point-in-polygon step to pair holes with outers; fail loudly
             # instead of guessing.
-            raise ValueError(f"relation {oid} has inner rings; extend join_rings first")
-        outer_ways = [ways[m["ref"]]["nodes"] for m in top["members"]
-                      if m["type"] == "way" and m["role"] in ("outer", "")]
+            raise BrokenInOSM(f"relation {oid} has inner rings; extend join_rings first")
+        outer_ids = [m["ref"] for m in top["members"]
+                     if m["type"] == "way" and m["role"] in ("outer", "")]
+        missing = [w for w in outer_ids if w not in ways]
+        if missing:
+            raise BrokenInOSM(f"relation {oid} lists way {missing[0]} but OSM did not return it")
+        outer_ways = [ways[w]["nodes"] for w in outer_ids]
+        outer_way_ids = outer_ids
 
     polygons = []
-    for ring in join_rings(outer_ways):
+    for ring in join_rings(outer_ways, outer_way_ids):
         coords = [[round(nodes[n][0], 7), round(nodes[n][1], 7)] for n in ring]
         if signed_area(coords) < 0:  # GeoJSON wants outer rings counter-clockwise
             coords.reverse()
@@ -270,22 +294,41 @@ def compare_source(source, geo, timeout):
 
 
 def check(config, timeout=30):
-    """Compare every frozen polygon with live OSM. Returns the number of
-    entries that changed; problems fetching are warnings, not changes."""
+    """Compare every frozen polygon with live OSM. Returns (changed,
+    unchecked): the number of entries whose line moved, and the number that
+    could not be checked at all (broken in OSM, or the download kept
+    failing). Both make --fail-on-change fail: an entry we could not check
+    may have moved."""
     try:
         geo = Geometry(config["metric_crs"])
     except ImportError:
         geo = None
         print("::warning::shapely/pyproj not installed: comparing hashes only, no metre figures")
     changed = 0
+    unchecked = 0
     for entry in boundary_entries(config):
         entry_changed = False
+        entry_unchecked = False
         notes = []
         for source in osm_sources(entry):
+            label = f"{source['osm_type']} {source['osm_id']}"
             try:
                 moved, text, live = compare_source(source, geo, timeout)
+            except BrokenInOSM as exc:
+                entry_unchecked = True
+                print(f"::error title=Boundary broken in OSM::{entry['name']}: {label} is broken in "
+                      f"OpenStreetMap right now: {exc}. It could NOT be checked, so a real move of the "
+                      f"line may be hidden. The build and the release keep using the frozen copy "
+                      f"(v{source['osm_version']}), so the app stays safe. Look at "
+                      f"https://www.openstreetmap.org/{source['osm_type']}/{source['osm_id']}/history and "
+                      f"run this check again once a mapper has repaired it.")
+                continue
             except Exception as exc:
-                print(f"::warning::could not check {source['osm_type']} {source['osm_id']}: {exc}")
+                entry_unchecked = True
+                print(f"::error title=Boundary could not be checked::{entry['name']}: {label} could NOT "
+                      f"be checked: {exc}. The build and the release keep using the frozen copy "
+                      f"(v{source['osm_version']}). Re-run this job; if it keeps failing, look at "
+                      f"https://www.openstreetmap.org/{source['osm_type']}/{source['osm_id']}.")
                 continue
             notes.append(text)
             entry_changed |= moved
@@ -296,6 +339,8 @@ def check(config, timeout=30):
                     entry_changed = True
                     notes.append(f"{source['osm_type']} {source['osm_id']} now reaches {poke:.0f} m "
                                  f"outside the hand-made polygon {entry['file']}")
+        if entry_unchecked:
+            unchecked += 1
         if entry_changed:
             changed += 1
             print(f"::warning::{entry['name']}: " + "; ".join(notes) + ". The build keeps using the "
@@ -303,9 +348,11 @@ def check(config, timeout=30):
                   "scripts/fetch_boundaries.py --refresh if it is legitimate"
                   + (" (and redraw the hand-made polygon if it no longer covers the village)."
                      if entry.get("hand_made") else "."))
+        elif entry_unchecked:
+            print(f"NOT CHECKED {entry['name']}" + (": " + "; ".join(notes) if notes else ""))
         else:
             print(f"ok {entry['name']}: " + "; ".join(notes))
-    return changed
+    return changed, unchecked
 
 
 def main():
@@ -314,16 +361,21 @@ def main():
     mode.add_argument("--refresh", action="store_true", help="download and rewrite the frozen OSM copies")
     mode.add_argument("--check", action="store_true", help="compare the frozen geometry with live OSM")
     parser.add_argument("--fail-on-change", action="store_true",
-                        help="with --check: exit 1 when a line moved (for the separate CI job)")
+                        help="with --check: exit 1 when a line moved or could not be checked "
+                             "(for the separate CI job)")
     args = parser.parse_args()
 
     config = json.loads(CONFIG.read_text(encoding="utf-8"))
     if args.refresh:
         refresh(config)
         return 0
-    changed = check(config)
-    print(f"boundary check: {changed} changed upstream")
-    return 1 if (changed and args.fail_on_change) else 0
+    changed, unchecked = check(config)
+    print(f"boundary check: {changed} changed upstream, {unchecked} could not be checked")
+    if unchecked:
+        print(f"::error title=Boundary check incomplete::{unchecked} boundary polygon(s) could not be "
+              "checked (see the errors above). This job is red on purpose; the release keeps using "
+              "the frozen boundaries.")
+    return 1 if ((changed or unchecked) and args.fail_on_change) else 0
 
 
 if __name__ == "__main__":

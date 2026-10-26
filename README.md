@@ -168,8 +168,14 @@ The build never updates the polygons by itself. A separate weekly job,
 itself, not only the version number (moving one node of the line changes
 only that node's version). It prints the largest shift in metres, checks
 that the Perevi sources still lie inside the hand-made polygon, and fails
-when anything moved, so GitHub emails the owner. It never blocks the build
-or the release, which keep using the frozen copies. To accept a change:
+when anything moved, so GitHub emails the owner. It also fails when a
+polygon cannot be checked at all: an object that is broken in OSM (a ring
+that does not close, a member way OSM does not return) or a download that
+kept failing. The error names the relation, the node and the way, because a
+broken relation can hide a real move of the line. It never blocks the build
+or the release, which keep using the frozen copies. `scripts/test_boundaries.py`
+(standard library only) tests these paths with made-up OSM answers and runs
+first in the job. To accept a change:
 
 ```sh
 python3 scripts/fetch_boundaries.py --refresh   # rewrites the OSM copies in config/boundaries/
@@ -358,8 +364,10 @@ other row. Apps before schema 4 never read the table.
 The token has no rights by default; each job asks for its own, and every job
 but `publish` can only read.
 
-- `boundaries`: `fetch_boundaries.py --check --fail-on-change`. It never
-  blocks anything else.
+- `boundaries`: `test_boundaries.py`, then `fetch_boundaries.py --check
+  --fail-on-change` (red when a line moved or a polygon could not be
+  checked; the output also goes to the job summary). It never blocks
+  anything else.
 - `build`:
   1. Install the pinned Python packages; run `scripts/test_clip.py`.
   2. Download `georgia-latest.osm.pbf` (following Geofabrik's redirect to
@@ -453,6 +461,7 @@ python3 -m venv .venv && .venv/bin/pip install shapely pyproj osmium
 .venv/bin/python scripts/test_basemap.py
 .venv/bin/python scripts/test_geocoder.py
 python3 scripts/test_glyphs_sprites.py        # standard library only
+python3 scripts/test_boundaries.py            # standard library only
 python3 scripts/geocoder_fold.py --check      # the fold's shared vectors
 ```
 

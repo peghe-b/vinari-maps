@@ -2,8 +2,10 @@
 #
 # Jobs:
 # - boundaries: compares the frozen no-go polygons with live OSM. It fails
-#   (so GitHub emails the owner) when a line moved, and never blocks the
-#   build or the release, which keep using the frozen copies.
+#   (so GitHub emails the owner) when a line moved or when a polygon could
+#   not be checked (broken in OSM, e.g. a ring that does not close, or the
+#   download kept failing), and never blocks the build or the release,
+#   which keep using the frozen copies.
 # - build (read-only token): download and verify the OSM extract, run the
 #   safety clip, build the tiles, start Valhalla on the new tiles and run
 #   the safety gate, write the manifest (the tar and the zones), and hand
@@ -83,8 +85,26 @@ jobs:
           python3 -m venv .venv
           .venv/bin/pip install --quiet --only-binary :all: --require-hashes -r requirements.lock
 
-      - name: Compare frozen boundaries with live OSM (fails when a line moved)
-        run: .venv/bin/python scripts/fetch_boundaries.py --check --fail-on-change
+      - name: Self-test the boundary check (no downloads)
+        run: .venv/bin/python scripts/test_boundaries.py
+
+      - name: Compare frozen boundaries with live OSM (fails when a line moved or cannot be checked)
+        run: |
+          set +e
+          .venv/bin/python scripts/fetch_boundaries.py --check --fail-on-change | tee boundary_check.log
+          status=${PIPESTATUS[0]}
+          {
+            echo "## Boundary check"
+            if [ "$status" -eq 0 ]; then
+              echo "All frozen boundaries match live OSM."
+            else
+              echo "**Needs a human.** The release keeps using the frozen boundaries, so the app stays safe."
+            fi
+            echo '```'
+            sed -E 's/^::(error|warning)( title=[^:]*)?:://' boundary_check.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
 
   build:
     runs-on: ubuntu-24.04
