@@ -64,10 +64,22 @@ is put on the carriageway of that road (cameras.sections.road: its ref or
 name) that runs the section's way, within cameras.sections.snap_m: a km post
 often stands on the other carriageway of a divided road. A section whose end
 finds no such road (the road was rebuilt or renamed in OSM) is dropped and
-counted (sections_unplaced), never guessed. Its limit is the release's,
-unless the road's own explicit OSM limit there says otherwise: then none
-(sections_maxspeed_conflict), since one of the two is out of date. Such a row
-has osm 'mia-<release>-<item>', maxspeed_src 'mia' and heading_src 'section'.
+counted (sections_unplaced), never guessed. Such a row has osm
+'mia-<release>-<item>' and heading_src 'section'.
+
+Its limit is spoken only when a person checked it against a CURRENT official
+source (the section's limit_check: status 'confirmed', the date and the
+source's url): then maxspeed is the file's and maxspeed_src 'mia', unless the
+road's own explicit OSM limit there says otherwise: then none
+(sections_maxspeed_conflict), since one of the two is out of date. Without
+that check (status 'unverifiable', or no limit_check at all) the row keeps
+the section and its warning but maxspeed and maxspeed_src are NULL
+(sections_maxspeed_unconfirmed): the apps already say "average speed is
+measured" with no number when maxspeed is NULL (NavCameraWatch.limit on iOS
+and Android), so they need no change. Why: the releases are from 2018-2021,
+the ministry runs 692 sections in 2026 and publishes no current list, and on
+2026-10-26 none of the 23 could be confirmed; a wrong number read aloud is
+worse than none.
 
 OSM has only part of Georgia's cameras. The table is a hint for the driver,
 never a complete list, and the road signs always have priority.
@@ -98,7 +110,7 @@ CREATE TABLE cameras (
   lat REAL NOT NULL, lon REAL NOT NULL,   -- the camera; for a section with an end, its start
   end_lat REAL, end_lon REAL,       -- average_speed: the end of the section, else NULL
   maxspeed INTEGER,                 -- km/h, NULL when neither the camera nor its road says
-  maxspeed_src TEXT,                -- camera / relation / road / NULL
+  maxspeed_src TEXT,                -- camera / relation / road / mia (a confirmed section) / NULL
   heading INTEGER,                  -- 0..359, travel direction checked; NULL = both directions or unknown
   heading_src TEXT,                 -- oneway / relation / direction / NULL
   road_bearing INTEGER,             -- 0..179, the road's line at the camera; NULL = no car road within snap_m
@@ -741,6 +753,15 @@ def place_on_road(index, lat, lon, travel, want, snap_m, line_max_deg):
     return None
 
 
+LIMIT_STATUSES = ("confirmed", "unverifiable")
+
+
+def limit_confirmed(section):
+    """True when the section's limit was checked against a current official
+    source (limit_check status 'confirmed'): only then is the number spoken."""
+    return (section.get("limit_check") or {}).get("status") == "confirmed"
+
+
 def section_rows(collector, index, zones, cfg, stats):
     """Rows for the curated sections whose both ends land on their road."""
     scfg = cfg.get("sections") or {}
@@ -762,7 +783,10 @@ def section_rows(collector, index, zones, cfg, stats):
             continue
         speed, src = s["maxspeed"], "mia"
         own = road_maxspeed(road, heading, cfg)
-        if own is not None and own != speed:
+        if not limit_confirmed(s):
+            stats["sections_maxspeed_unconfirmed"] += 1
+            speed, src = None, None
+        elif own is not None and own != speed:
             stats["sections_maxspeed_conflict"] += 1
             stats[f"sections_maxspeed_conflict {s['id']} {speed} vs {own}"] += 1
             speed, src = None, None
@@ -779,7 +803,8 @@ def section_rows(collector, index, zones, cfg, stats):
 
 def load_sections(path, problems):
     """The curated sections file: its sections (each with id, road, from, to,
-    maxspeed) after a check; problems collects what is wrong."""
+    maxspeed, and optionally limit_check) after a check; problems collects
+    what is wrong."""
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     sources = data.get("sources") or {}
     out, seen = [], set()
@@ -808,6 +833,17 @@ def load_sections(path, problems):
                 problems.append(f"sections: {sid} {end} needs 'what' (the release's words) and 'evidence'")
         if not isinstance(s.get("maxspeed"), int) or not 20 <= s["maxspeed"] <= 130:
             problems.append(f"sections: {sid} maxspeed must be km/h (20-130)")
+        check = s.get("limit_check")
+        if check is not None:
+            if not isinstance(check, dict) or check.get("status") not in LIMIT_STATUSES:
+                problems.append(f"sections: {sid} limit_check status must be one of {', '.join(LIMIT_STATUSES)}")
+            elif not (isinstance(check.get("date"), str) and len(check["date"]) == 10
+                      and check["date"][4] == check["date"][7] == "-"):
+                problems.append(f"sections: {sid} limit_check needs its date (YYYY-MM-DD)")
+            elif check["status"] == "confirmed" and not str(check.get("source", "")).startswith("https://"):
+                problems.append(f"sections: {sid} limit_check confirmed needs the current official source (https url)")
+            elif check["status"] == "unverifiable" and not check.get("note"):
+                problems.append(f"sections: {sid} limit_check unverifiable needs a note (what was looked at)")
         if not problems:
             gap = distance_m(s["from"]["lat"], s["from"]["lon"], s["to"]["lat"], s["to"]["lon"])
             if not 200 <= gap <= 40000:

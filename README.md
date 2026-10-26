@@ -343,11 +343,17 @@ number is the release's km and whose nearby village or junction is the one
 the release names, or the junction itself. Each section keeps its release,
 date and evidence; the file also lists the sections not placed and why. The
 build puts each end on the carriageway of its road that runs the section's
-way (`cameras.sections`), drops a section whose road is gone, and takes the
-release's limit unless the road's own OSM limit there differs (then none).
-These rows have `osm` `mia-<release>-<item>`, `maxspeed_src` `mia` and
-`heading_src` `section`. The releases are from 2018 to 2021, so a section may
-have changed since; this is never the full list.
+way (`cameras.sections`) and drops a section whose road is gone. These rows
+have `osm` `mia-<release>-<item>` and `heading_src` `section`. The releases
+are from 2018 to 2021, so a section may have changed since; this is never the
+full list. The limit is spoken only when the section's `limit_check` is
+`confirmed` (a person checked it against a current official source, with its
+date and url): then `maxspeed` is the file's and `maxspeed_src` `mia`, unless
+the road's own OSM limit there differs (then none). An `unverifiable` check,
+or none, keeps the section and its warning with `maxspeed` NULL, which both
+apps already say without a number. On 2026-10-26 all 23 were `unverifiable`:
+the ministry runs 692 sections (112.gov.ge, 2026) but publishes no current
+list.
 
 Road hazards (schema 4). A table `hazards` (no search index; schema in
 `scripts/geocoder_hazards.py`, rules in `config/geocoder.json` `hazards`) for

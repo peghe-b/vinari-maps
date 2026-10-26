@@ -1,7 +1,7 @@
 {
-  "_about": "Average-speed sections of the Ministry of Internal Affairs of Georgia, from its press releases (sources), for the navigator's section warnings (scripts/geocoder_cameras.py section_rows). Each end is an OSM km post (highway=milestone) of the road the release names, whose number is the release's km and whose nearest village or junction is the one the release names, or the junction itself; 'evidence' says which. The build puts each end on the carriageway of that road which runs the section's way. Only sections whose both ends could be placed this way are here; not_placed lists the rest and why. The releases are from 2018-2021: a section may have moved or changed its limit since, and the road signs always win. This is never the full list.",
+  "_about": "Average-speed sections of the Ministry of Internal Affairs of Georgia, from its press releases (sources), for the navigator's section warnings (scripts/geocoder_cameras.py section_rows). Each end is an OSM km post (highway=milestone) of the road the release names, whose number is the release's km and whose nearest village or junction is the one the release names, or the junction itself; 'evidence' says which. The build puts each end on the carriageway of that road which runs the section's way. Only sections whose both ends could be placed this way are here; not_placed lists the rest and why. The releases are from 2018-2021: a section may have moved or changed its limit since, and the road signs always win. limit_check says whether a person confirmed the limit against a CURRENT official source (status confirmed, its date and source url): only then does the navigator speak the number; unverifiable (or no limit_check) keeps the warning without a number (maxspeed NULL in the cameras table). On 2026-10-26 none of the 23 could be confirmed: the ministry publishes no current list (692 sections in 2026, against about 1269 km of road in 2021), so all are unverifiable. To confirm one, add a dated official source that names it (a police.ge or 112.gov.ge release, or a photo of the road sign with its date and place) and set status confirmed; change maxspeed first if the limit changed; remove the section when the source says it was removed. This is never the full list.",
   "version": 1,
-  "checked": "2026-10-19",
+  "checked": "2026-10-26",
   "sources": {
     "mia-11892": {
       "url": "https://mia.police.ge/ge/qutaisis-shemovlit-saavtomobilo-gzaze-sichqaris-mzomi-seqtsiuri-radarebi-amoqmedda/11892",
@@ -103,7 +103,12 @@
         "what": "ბერბუკის ხიდი",
         "evidence": "OSM milestone n2160761272 (ს 1, distance=81); bridges 290-320 m away, Berbuki village 580 m; nearest places: ბერბუკი village 578 m, სვენეთი village 1787 m, რეხა village 2054 m"
       },
-      "maxspeed": 110
+      "maxspeed": 110,
+      "limit_check": {
+        "status": "unverifiable",
+        "date": "2026-10-26",
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM tags the motorway 110 on most of this stretch (2026-10-26), and the general motorway limit for cars is 110, but that is not the section's official limit. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
+      }
     },
     {
       "id": "mia-13166-2",
@@ -123,7 +128,12 @@
         "what": "ცხინვალის გადასახვევი",
         "evidence": "OSM milestone n4312717836 (ს 1, distance=83); motorway junction 'გორი, ცხინვალი' 100 m away; nearest places: Vologda suburb 1632 m, Ortasheni suburb 1830 m, ორთაშენი village 1918 m"
       },
-      "maxspeed": 110
+      "maxspeed": 110,
+      "limit_check": {
+        "status": "unverifiable",
+        "date": "2026-10-26",
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM tags the motorway 110 on most of this stretch (2026-10-26), and the general motorway limit for cars is 110, but that is not the section's official limit. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
+      }
     },
     {
       "id": "mia-13166-3",
@@ -143,7 +153,12 @@
         "what": "გორის გვირაბი",
         "evidence": "OSM milestone n12869248190 (ს 1, distance=87); tunnel 'გორის გვირაბი' 410 m away; nearest places: თედოწმინდა village 1827 m, ორთაშენი village 1967 m, Ortasheni suburb 3131 m"
       },
-      "maxspeed": 110
+      "maxspeed": 110,
+      "limit_check": {
+        "status": "unverifiable",
+        "date": "2026-10-26",
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM tags the motorway 110 on most of this stretch (2026-10-26), and the general motorway limit for cars is 110, but that is not the section's official limit. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
+      }
     },
     {
       "id": "mia-13166-4",
@@ -163,7 +178,12 @@
         "what": "რუისის გადასახვევი",
         "evidence": "OSM milestone n2564071801 (ს 1, distance=94); motorway junction 'ურბნისი, რუისი' 330 m away; nearest places: ურბნისი village 1179 m, რუისი village 1597 m, ქვემო ხვედურეთი village 3910 m"
       },
-      "maxspeed": 110
+      "maxspeed": 110,
+      "limit_check": {
+        "status": "unverifiable",
+        "date": "2026-10-26",
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM tags the motorway 110 on most of this stretch (2026-10-26), and the general motorway limit for cars is 110, but that is not the section's official limit. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
+      }
     },
     {
       "id": "mia-13166-5",
@@ -183,7 +203,12 @@
         "what": "ქარელის გადასახვევი",
         "evidence": "OSM milestone n12869274219 (ს 1, distance=102); the ქარელი — აგარა — აგარები road crosses 520 m away; nearest places: საღოლაშენი village 784 m, არადეთი village 951 m, წვერი village 1616 m"
       },
-      "maxspeed": 110
+      "maxspeed": 110,
+      "limit_check": {
+        "status": "unverifiable",
+        "date": "2026-10-26",
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM tags the motorway 110 on most of this stretch (2026-10-26), and the general motorway limit for cars is 110, but that is not the section's official limit. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
+      }
     },
     {
       "id": "mia-13166-6",
@@ -203,7 +228,12 @@
         "what": "აგარის გადასახვევი",
         "evidence": "OSM milestone n4240991427 (ს 1, distance=112); the ქარელი — აგარა — აგარები road 650 m away, Agara 2.5 km; nearest places: აგარა town 2493 m, ქვენატკოცა village 2696 m, ახალსოფელი village 2710 m"
       },
-      "maxspeed": 110
+      "maxspeed": 110,
+      "limit_check": {
+        "status": "unverifiable",
+        "date": "2026-10-26",
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM tags the motorway 110 on most of this stretch (2026-10-26), and the general motorway limit for cars is 110, but that is not the section's official limit. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
+      }
     },
     {
       "id": "mia-13166-7",
@@ -223,7 +253,12 @@
         "what": "ქარელის გადასახვევი",
         "evidence": "OSM milestone n12869274219 (ს 1, distance=102); the ქარელი — აგარა — აგარები road crosses 520 m away; nearest places: საღოლაშენი village 784 m, არადეთი village 951 m, წვერი village 1616 m"
       },
-      "maxspeed": 110
+      "maxspeed": 110,
+      "limit_check": {
+        "status": "unverifiable",
+        "date": "2026-10-26",
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM tags the motorway 110 on most of this stretch (2026-10-26), and the general motorway limit for cars is 110, but that is not the section's official limit. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
+      }
     },
     {
       "id": "mia-13166-8",
@@ -243,7 +278,12 @@
         "what": "რუისის გადასახვევი",
         "evidence": "OSM milestone n2564071801 (ს 1, distance=94); motorway junction 'ურბნისი, რუისი' 330 m away; nearest places: ურბნისი village 1179 m, რუისი village 1597 m, ქვემო ხვედურეთი village 3910 m"
       },
-      "maxspeed": 110
+      "maxspeed": 110,
+      "limit_check": {
+        "status": "unverifiable",
+        "date": "2026-10-26",
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM tags the motorway 110 on most of this stretch (2026-10-26), and the general motorway limit for cars is 110, but that is not the section's official limit. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
+      }
     },
     {
       "id": "mia-13166-9",
@@ -263,7 +303,12 @@
         "what": "გორის გვირაბი",
         "evidence": "OSM milestone n12869248190 (ს 1, distance=87); tunnel 'გორის გვირაბი' 410 m away; nearest places: თედოწმინდა village 1827 m, ორთაშენი village 1967 m, Ortasheni suburb 3131 m"
       },
-      "maxspeed": 110
+      "maxspeed": 110,
+      "limit_check": {
+        "status": "unverifiable",
+        "date": "2026-10-26",
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM tags the motorway 110 on most of this stretch (2026-10-26), and the general motorway limit for cars is 110, but that is not the section's official limit. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
+      }
     },
     {
       "id": "mia-13166-10",
@@ -283,7 +328,12 @@
         "what": "ცხინვალის გადასახვევი",
         "evidence": "OSM milestone n4312717836 (ს 1, distance=83); motorway junction 'გორი, ცხინვალი' 100 m away; nearest places: Vologda suburb 1632 m, Ortasheni suburb 1830 m, ორთაშენი village 1918 m"
       },
-      "maxspeed": 110
+      "maxspeed": 110,
+      "limit_check": {
+        "status": "unverifiable",
+        "date": "2026-10-26",
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM tags the motorway 110 on most of this stretch (2026-10-26), and the general motorway limit for cars is 110, but that is not the section's official limit. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
+      }
     },
     {
       "id": "mia-13166-11",
@@ -303,7 +353,12 @@
         "what": "ბერბუკის ხიდი",
         "evidence": "OSM milestone n2160761272 (ს 1, distance=81); bridges 290-320 m away, Berbuki village 580 m; nearest places: ბერბუკი village 578 m, სვენეთი village 1787 m, რეხა village 2054 m"
       },
-      "maxspeed": 110
+      "maxspeed": 110,
+      "limit_check": {
+        "status": "unverifiable",
+        "date": "2026-10-26",
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM tags the motorway 110 on most of this stretch (2026-10-26), and the general motorway limit for cars is 110, but that is not the section's official limit. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
+      }
     },
     {
       "id": "mia-12722-1",
@@ -323,7 +378,12 @@
         "what": "მე-2 კმ (სოფელი ნატახტარი)",
         "evidence": "midway between OSM milestones n12596437898 (km 1) and n12119001635 (km 3), 1998 m apart in a straight line (the road is straight there); nearest places: ნატახტარი village 1054 m, საგურამო village 3168 m, მისაქციელი village 3950 m"
       },
-      "maxspeed": 80
+      "maxspeed": 80,
+      "limit_check": {
+        "status": "unverifiable",
+        "date": "2026-10-26",
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM (2026-10-26) tags this stretch 70 and 60 where the 2019 release says 80: it may have changed."
+      }
     },
     {
       "id": "mia-12722-2",
@@ -343,7 +403,12 @@
         "what": "0 კმ (თბილისი-სენაკი-ლესელიძე ავტობანი)",
         "evidence": "OSM milestone n12861422511 (ს 3, distance=0); the junction with ს 1 (the autobahn); nearest places: ნატახტარი village 3034 m, საგურამო village 3478 m, წეროვანი village 3685 m"
       },
-      "maxspeed": 80
+      "maxspeed": 80,
+      "limit_check": {
+        "status": "unverifiable",
+        "date": "2026-10-26",
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM (2026-10-26) tags this stretch 70 and 60 where the 2019 release says 80: it may have changed."
+      }
     },
     {
       "id": "mia-12722-3",
@@ -363,7 +428,12 @@
         "what": "მე-5 კმ (სოფელი მისაქციელი)",
         "evidence": "OSM milestone n12119001689 (ს 3, distance=5); Misaktsieli village node 850 m away; nearest places: მისაქციელი village 845 m, ნატახტარი village 2054 m, აღდგომლიანთკარი village 3136 m"
       },
-      "maxspeed": 60
+      "maxspeed": 60,
+      "limit_check": {
+        "status": "unverifiable",
+        "date": "2026-10-26",
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM (2026-10-26) tags this stretch 70 and 60 where the 2019 release says 80: it may have changed."
+      }
     },
     {
       "id": "mia-12722-4",
@@ -383,7 +453,12 @@
         "what": "მე-2 კმ (სოფელი ნატახტარი)",
         "evidence": "midway between OSM milestones n12596437898 (km 1) and n12119001635 (km 3), 1998 m apart in a straight line (the road is straight there); nearest places: ნატახტარი village 1054 m, საგურამო village 3168 m, მისაქციელი village 3950 m"
       },
-      "maxspeed": 60
+      "maxspeed": 60,
+      "limit_check": {
+        "status": "unverifiable",
+        "date": "2026-10-26",
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM (2026-10-26) tags this stretch 70 and 60 where the 2019 release says 80: it may have changed."
+      }
     },
     {
       "id": "mia-12722-5",
@@ -403,7 +478,12 @@
         "what": "მე-9 კმ (სოფელი ნაოზა)",
         "evidence": "OSM milestone n12596439024 (ს 3, distance=9); no Naoza in OSM; the road's numbering matches at km 0, 2 and 5; nearest places: აღდგომლიანთკარი village 1060 m, ნავაზი village 1069 m, ჭოპორტი village 1939 m"
       },
-      "maxspeed": 80
+      "maxspeed": 80,
+      "limit_check": {
+        "status": "unverifiable",
+        "date": "2026-10-26",
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM (2026-10-26) tags this stretch 70 and 60 where the 2019 release says 80: it may have changed."
+      }
     },
     {
       "id": "mia-12722-6",
@@ -423,7 +503,12 @@
         "what": "მე-5 კმ (სოფელი მისაქციელი)",
         "evidence": "OSM milestone n12119001689 (ს 3, distance=5); Misaktsieli village node 850 m away; nearest places: მისაქციელი village 845 m, ნატახტარი village 2054 m, აღდგომლიანთკარი village 3136 m"
       },
-      "maxspeed": 80
+      "maxspeed": 80,
+      "limit_check": {
+        "status": "unverifiable",
+        "date": "2026-10-26",
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM (2026-10-26) tags this stretch 70 and 60 where the 2019 release says 80: it may have changed."
+      }
     },
     {
       "id": "mia-12894-1",
@@ -443,7 +528,12 @@
         "what": "47-ე კმ (სოფელი გრიგოლეთი - ურეკი)",
         "evidence": "OSM milestone n12833154401 (ს 2, distance=47); the junction with ს 12 at Grigoleti; nearest places: გრიგოლეთი village 2018 m, წყალწმინდა village 3195 m, მაგნეტიტი suburb 3253 m"
       },
-      "maxspeed": 90
+      "maxspeed": 90,
+      "limit_check": {
+        "status": "unverifiable",
+        "date": "2026-10-26",
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; S2 between Poti and Grigoleti stays a two-lane road (no rebuild found); OSM tags 90 on part of it."
+      }
     },
     {
       "id": "mia-12894-2",
@@ -463,7 +553,12 @@
         "what": "39-ე კმ (ქალაქი ფოთი, მალთაყვის ხიდი)",
         "evidence": "OSM milestone n12833154408 (ს 2, distance=39); the Maltakva highway bridge 475 m away; nearest places: მალთაყვა suburb 3623 m, მალთაყვა village 3674 m, გრიგოლეთი village 5955 m"
       },
-      "maxspeed": 90
+      "maxspeed": 90,
+      "limit_check": {
+        "status": "unverifiable",
+        "date": "2026-10-26",
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; S2 between Poti and Grigoleti stays a two-lane road (no rebuild found); OSM tags 90 on part of it."
+      }
     },
     {
       "id": "mia-12493-1a",
@@ -483,7 +578,12 @@
         "what": "28-ე კმ (ფარცხანაყანევი)",
         "evidence": "OSM milestone n12871723861 (შ 204, distance=28); Partskhanakanevi village 0.9 km away; nearest places: ფარცხანაყანევი village 918 m, მიწაწითელი village 3184 m, მუხიანი village 4439 m"
       },
-      "maxspeed": 60
+      "maxspeed": 60,
+      "limit_check": {
+        "status": "unverifiable",
+        "date": "2026-10-26",
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; 60 km/h over 10 km of the Kutaisi-Samtredia road is the 2019 release's figure only."
+      }
     },
     {
       "id": "mia-12493-1b",
@@ -503,7 +603,12 @@
         "what": "მე-18 კმ (ქვიტირი)",
         "evidence": "OSM milestone n12871723914 (შ 204, distance=18); Kvitiri village 1 km away; nearest places: ქვიტირი village 1000 m, სულხან-საბა suburb 1730 m, ავტოქარხანა suburb 1891 m"
       },
-      "maxspeed": 60
+      "maxspeed": 60,
+      "limit_check": {
+        "status": "unverifiable",
+        "date": "2026-10-26",
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; 60 km/h over 10 km of the Kutaisi-Samtredia road is the 2019 release's figure only."
+      }
     },
     {
       "id": "mia-12210-7",
@@ -523,7 +628,12 @@
         "what": "კახეთის გზატკეცილი, ი. იუმაშევის ქუჩის კვეთა",
         "evidence": "OSM node n280198975, shared by ს 5 (კახეთის გზატკეცილი) and ივანე იუმაშევის ქუჩა"
       },
-      "maxspeed": 80
+      "maxspeed": 80,
+      "limit_check": {
+        "status": "unverifiable",
+        "date": "2026-10-26",
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM tags the Kakheti highway 80 there (2026-10-26)."
+      }
     },
     {
       "id": "mia-12210-8",
@@ -543,7 +653,12 @@
         "what": "კახეთის გზატკეცილი, მ. გრიგორაშვილის ქუჩის კვეთა",
         "evidence": "the ს 5 (კახეთის გზატკეცილი) node nearest to the end of მიხეილ გრიგორაშვილის ქუჩა (54 m)"
       },
-      "maxspeed": 80
+      "maxspeed": 80,
+      "limit_check": {
+        "status": "unverifiable",
+        "date": "2026-10-26",
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM tags the Kakheti highway 80 there (2026-10-26)."
+      }
     }
   ],
   "not_placed": [

@@ -450,10 +450,16 @@ SEC_WAYS = {
 }
 
 
-def sec(sid, road, a, b, kmh):
-    return {"id": sid, "source": "mia-1", "road": road, "maxspeed": kmh,
-            "from": {"lat": a[0], "lon": a[1], "what": "start", "evidence": "test"},
-            "to": {"lat": b[0], "lon": b[1], "what": "end", "evidence": "test"}}
+CONFIRMED = {"status": "confirmed", "date": "2026-10-26", "source": "https://police.ge/ge/test"}
+
+
+def sec(sid, road, a, b, kmh, check=CONFIRMED):
+    s = {"id": sid, "source": "mia-1", "road": road, "maxspeed": kmh,
+         "from": {"lat": a[0], "lon": a[1], "what": "start", "evidence": "test"},
+         "to": {"lat": b[0], "lon": b[1], "what": "end", "evidence": "test"}}
+    if check is not None:
+        s["limit_check"] = check
+    return s
 
 
 SECTIONS = [
@@ -500,6 +506,20 @@ class SectionsTest(unittest.TestCase):
         self.assertEqual((self.rows["mia-1-3"]["maxspeed"], self.rows["mia-1-3"]["maxspeed_src"]), (None, None))
         self.assertEqual(self.stats["sections_maxspeed_conflict"], 1)
 
+    def test_an_unconfirmed_limit_keeps_the_section_but_not_its_number(self):
+        unverifiable = {"status": "unverifiable", "date": "2026-10-26", "note": "no current list"}
+        for check in (unverifiable, None):
+            with self.subTest(check=check):
+                s = sec("mia-4-1", {"ref": "ს 9"}, (41.9503, 44.31), (41.9503, 44.38), 90, check=check)
+                stats = Counter()
+                rows = {r["osm"]: r for r in gc.build_cameras(section_collector([s]).cams, zones(),
+                                                              dict(CFG, _sections=[s]), stats)}
+                r = rows["mia-4-1"]
+                self.assertEqual((r["kind"], r["end_lon"], r["heading"]), ("average_speed", 44.38, 90))
+                self.assertEqual((r["maxspeed"], r["maxspeed_src"]), (None, None))
+                self.assertEqual(stats["sections_maxspeed_unconfirmed"], 1)
+                self.assertEqual(stats["sections_maxspeed_conflict"], 0)
+
     def test_by_name_on_a_two_way_road(self):
         r = self.rows["mia-1-5"]
         self.assertEqual((r["lat"], r["lon"], r["end_lon"], r["heading"], r["maxspeed"]), (41.8, 44.12, 44.14, 90, 80))
@@ -534,6 +554,10 @@ class SectionsTest(unittest.TestCase):
             "lat and lon": dict(good, to={"lat": 50, "lon": 44.3, "what": "x", "evidence": "y"}),
             "evidence": dict(good, to={"lat": 41.95, "lon": 44.38, "what": "x"}),
             "maxspeed": dict(good, maxspeed=150),
+            "status must be": dict(good, limit_check={"status": "probably", "date": "2026-10-26"}),
+            "its date": dict(good, limit_check={"status": "confirmed", "source": "https://police.ge/x"}),
+            "official source": dict(good, limit_check={"status": "confirmed", "date": "2026-10-26"}),
+            "needs a note": dict(good, limit_check={"status": "unverifiable", "date": "2026-10-26"}),
             "long": dict(good, to={"lat": 41.95, "lon": 44.3101, "what": "x", "evidence": "y"}),
         }
         with tempfile.TemporaryDirectory() as tmp:
@@ -563,6 +587,8 @@ class SectionsTest(unittest.TestCase):
         for s in CFG["_sections"]:
             self.assertIn(s["source"], data["sources"])
             self.assertEqual(s["id"].split("-")[1], s["source"].split("-")[1])
+            # every section says whether its number may be spoken (2026-10-26: none confirmed)
+            self.assertIn(s["limit_check"]["status"], gc.LIMIT_STATUSES, s["id"])
         self.assertTrue(all(n.get("why") for n in data["not_placed"]))
 
 
