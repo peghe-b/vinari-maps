@@ -441,16 +441,27 @@ SEC_NODES = {
     1301: (44.59, 42.30), 1302: (44.70, 42.30),
     # W14: a ramp of ს 9 leaving W11 to the north-east
     1401: (44.35, 41.95), 1402: (44.352, 41.953),
+    # W15-W17: a one-way ს 8 running east along 41.90 in three ways, 80 / 80 / 60
+    1501: (44.40, 41.90), 1502: (44.43, 41.90), 1503: (44.47, 41.90), 1504: (44.50, 41.90),
+    # W19: a two-way ს 7 along 41.85, 70 eastbound (way order) and 50 westbound
+    1901: (44.40, 41.85), 1902: (44.42, 41.85), 1903: (44.44, 41.85),
 }
 SEC_WAYS = {
     11: ([1101, 1102], {"highway": "motorway", "ref": "ს 9", "oneway": "yes", "maxspeed": "90"}),
     12: ([1201, 1202], {"highway": "motorway", "ref": "ს 9", "oneway": "yes"}),
     13: ([1301, 1302], {"highway": "trunk", "ref": "ს 9"}),
     14: ([1401, 1402], {"highway": "motorway_link", "ref": "ს 9", "oneway": "yes"}),
+    15: ([1501, 1502], {"highway": "trunk", "ref": "ს 8", "oneway": "yes", "maxspeed": "80"}),
+    16: ([1502, 1503], {"highway": "trunk", "ref": "ს 8", "oneway": "yes", "maxspeed": "80"}),
+    17: ([1503, 1504], {"highway": "trunk", "ref": "ს 8", "oneway": "yes", "maxspeed": "60"}),
+    19: ([1901, 1902, 1903], {"highway": "primary", "ref": "ს 7", "maxspeed:forward": "70",
+                               "maxspeed:backward": "50"}),
 }
 
 
 CONFIRMED = {"status": "confirmed", "date": "2026-10-26", "source": "https://police.ge/ge/test"}
+CORROBORATED = {"status": "corroborated", "date": "2026-10-26", "source": "https://police.ge/ge/test",
+                "note": "the 2019 release and OSM say the same", "osm_ways": [15, 16]}
 
 
 def sec(sid, road, a, b, kmh, check=CONFIRMED):
@@ -478,9 +489,11 @@ SECTIONS = [
 ]
 
 
-def section_collector(sections=SECTIONS):
+def section_collector(sections=SECTIONS, without=()):
     c = gb.Collector(dict(CONFIG, cameras=dict(CFG, _sections=sections)))
     for way_id, (refs, tags) in sorted((WAYS | SEC_WAYS).items()):
+        if way_id in without:
+            continue
         nodes = NODES | SEC_NODES
         c.way(way_id, tags, refs, [nodes[r] for r in refs])
     return c
@@ -520,6 +533,55 @@ class SectionsTest(unittest.TestCase):
                 self.assertEqual(stats["sections_maxspeed_unconfirmed"], 1)
                 self.assertEqual(stats["sections_maxspeed_conflict"], 0)
 
+    def build_one(self, s, without=()):
+        stats = Counter()
+        c = section_collector([s], without)
+        rows = {r["osm"]: r for r in gc.build_cameras(c.cams, zones(), dict(CFG, _sections=[s]), stats)}
+        return rows[s["id"]], stats, c.cams
+
+    def test_a_corroborated_limit_is_spoken_while_osm_agrees_on_the_whole_carriageway(self):
+        r, stats, _ = self.build_one(sec("mia-5-1", {"ref": "ს 8"}, (41.9001, 44.401), (41.9001, 44.469), 80,
+                                         check=CORROBORATED))
+        self.assertEqual((r["maxspeed"], r["maxspeed_src"], r["heading"]), (80, "mia", 90))
+        self.assertEqual((stats["sections_maxspeed_corroborated"], stats["sections_maxspeed_osm_disagrees"]), (1, 0))
+
+    def test_a_corroborated_limit_goes_silent_where_osm_now_says_otherwise(self):
+        # the start and the end both say 80, the third way (W17) 60
+        r, stats, _ = self.build_one(sec("mia-5-2", {"ref": "ს 8"}, (41.9001, 44.401), (41.9001, 44.499), 80,
+                                         check=CORROBORATED))
+        self.assertEqual((r["kind"], r["maxspeed"], r["maxspeed_src"]), ("average_speed", None, None))
+        self.assertEqual(stats["sections_maxspeed_osm_disagrees mia-5-2 80 vs 60"], 1)
+        # no limit on the carriageway at all (W12 has none)
+        r, stats, _ = self.build_one(sec("mia-5-3", {"ref": "ს 9"}, (41.95, 44.38), (41.95, 44.31), 90,
+                                         check=CORROBORATED))
+        self.assertEqual(r["maxspeed"], None)
+        self.assertEqual(stats["sections_maxspeed_osm_disagrees mia-5-3 90 vs None"], 1)
+
+    def test_a_corroborated_limit_goes_silent_when_the_carriageway_breaks(self):
+        # W16 redrawn from a node of its own, 8 m past W15's end: no walk from the start to the end
+        s = sec("mia-5-4", {"ref": "ს 8"}, (41.9001, 44.401), (41.9001, 44.469), 80, check=CORROBORATED)
+        c = section_collector([s], without={16})
+        c.way(160, SEC_WAYS[16][1], [1505, 1503], [(44.4301, 41.90), SEC_NODES[1503]])
+        stats = Counter()
+        rows = {r["osm"]: r for r in gc.build_cameras(c.cams, zones(), dict(CFG, _sections=[s]), stats)}
+        r = rows["mia-5-4"]
+        self.assertEqual(r["maxspeed"], None)
+        self.assertEqual(stats["sections_maxspeed_osm_disagrees mia-5-4 80 vs no walk"], 1)
+
+    def test_the_middle_of_a_corroborated_section_is_collected(self):
+        # W16 lies more than a grid cell from both ends: kept only for the walk
+        s = sec("mia-5-5", {"ref": "ს 8"}, (41.9001, 44.401), (41.9001, 44.499), 80, check=CORROBORATED)
+        self.assertIn(16, section_collector([s]).cams.roads)
+        self.assertNotIn(16, section_collector([dict(s, limit_check=CONFIRMED)]).cams.roads)
+
+    def test_a_corroborated_limit_reads_the_direction(self):
+        for a, b, kmh, want in (((41.85, 44.401), (41.85, 44.439), 70, 70),
+                                ((41.85, 44.439), (41.85, 44.401), 50, 50),
+                                ((41.85, 44.439), (41.85, 44.401), 70, None)):
+            with self.subTest(a=a, kmh=kmh):
+                r, _, _ = self.build_one(sec("mia-6-1", {"ref": "ს 7"}, a, b, kmh, check=CORROBORATED))
+                self.assertEqual(r["maxspeed"], want)
+
     def test_by_name_on_a_two_way_road(self):
         r = self.rows["mia-1-5"]
         self.assertEqual((r["lat"], r["lon"], r["end_lon"], r["heading"], r["maxspeed"]), (41.8, 44.12, 44.14, 90, 80))
@@ -558,6 +620,8 @@ class SectionsTest(unittest.TestCase):
             "its date": dict(good, limit_check={"status": "confirmed", "source": "https://police.ge/x"}),
             "official source": dict(good, limit_check={"status": "confirmed", "date": "2026-10-26"}),
             "needs a note": dict(good, limit_check={"status": "unverifiable", "date": "2026-10-26"}),
+            "osm_ways": dict(good, limit_check={"status": "corroborated", "date": "2026-10-26",
+                                                "source": "https://police.ge/x", "note": "agrees"}),
             "long": dict(good, to={"lat": 41.95, "lon": 44.3101, "what": "x", "evidence": "y"}),
         }
         with tempfile.TemporaryDirectory() as tmp:
@@ -587,8 +651,11 @@ class SectionsTest(unittest.TestCase):
         for s in CFG["_sections"]:
             self.assertIn(s["source"], data["sources"])
             self.assertEqual(s["id"].split("-")[1], s["source"].split("-")[1])
-            # every section says whether its number may be spoken (2026-10-26: none confirmed)
+            # every section says whether its number may be spoken (2026-10-26: none confirmed,
+            # some corroborated by OSM on their whole carriageway)
             self.assertIn(s["limit_check"]["status"], gc.LIMIT_STATUSES, s["id"])
+            if s["limit_check"]["status"] == "corroborated":
+                self.assertEqual(s["limit_check"]["source"], data["sources"][s["source"]]["url"], s["id"])
         self.assertTrue(all(n.get("why") for n in data["not_placed"]))
 
 

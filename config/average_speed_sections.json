@@ -1,5 +1,5 @@
 {
-  "_about": "Average-speed sections of the Ministry of Internal Affairs of Georgia, from its press releases (sources), for the navigator's section warnings (scripts/geocoder_cameras.py section_rows). Each end is an OSM km post (highway=milestone) of the road the release names, whose number is the release's km and whose nearest village or junction is the one the release names, or the junction itself; 'evidence' says which. The build puts each end on the carriageway of that road which runs the section's way. Only sections whose both ends could be placed this way are here; not_placed lists the rest and why. The releases are from 2018-2021: a section may have moved or changed its limit since, and the road signs always win. limit_check says whether a person confirmed the limit against a CURRENT official source (status confirmed, its date and source url): only then does the navigator speak the number; unverifiable (or no limit_check) keeps the warning without a number (maxspeed NULL in the cameras table). On 2026-10-26 none of the 23 could be confirmed: the ministry publishes no current list (692 sections in 2026, against about 1269 km of road in 2021), so all are unverifiable. To confirm one, add a dated official source that names it (a police.ge or 112.gov.ge release, or a photo of the road sign with its date and place) and set status confirmed; change maxspeed first if the limit changed; remove the section when the source says it was removed. This is never the full list.",
+  "_about": "Average-speed sections of the Ministry of Internal Affairs of Georgia, from its press releases (sources), for the navigator's section warnings (scripts/geocoder_cameras.py section_rows). Each end is an OSM km post (highway=milestone) of the road the release names, whose number is the release's km and whose nearest village or junction is the one the release names, or the junction itself; 'evidence' says which. The build puts each end on the carriageway of that road which runs the section's way. Only sections whose both ends could be placed this way are here; not_placed lists the rest and why. The releases are from 2018-2021: a section may have moved or changed its limit since, and the road signs always win. limit_check says whether the navigator speaks the number: confirmed (a person checked it against a CURRENT official source: its date and source url), or corroborated (the release's number, its url and date, and OSM's maxspeed on every metre of the section's carriageway on the day of the check, osm_ways, are the same; the build walks the carriageway again every week and drops the number when OSM no longer agrees). unverifiable (or no limit_check) keeps the warning without a number (maxspeed NULL in the cameras table). On 2026-10-26 none of the 23 could be confirmed: the ministry publishes no current list (692 sections in 2026, against about 1269 km of road in 2021); 6 are corroborated (mia-13166-5, mia-13166-6, mia-13166-7, mia-13166-8, mia-12493-1a, mia-12493-1b), the rest unverifiable. To confirm one, add a dated official source that names it (a police.ge or 112.gov.ge release, or a photo of the road sign with its date and place) and set status confirmed; change maxspeed first if the limit changed; remove the section when the source says it was removed. This is never the full list.",
   "version": 1,
   "checked": "2026-10-26",
   "sources": {
@@ -107,7 +107,7 @@
       "limit_check": {
         "status": "unverifiable",
         "date": "2026-10-26",
-        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM tags the motorway 110 on most of this stretch (2026-10-26), and the general motorway limit for cars is 110, but that is not the section's official limit. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal. OSM on 2026-10-26 (Overpass, data of 2026-10-26T16:45:20Z) along this section's carriageway from the start to the end (1104 m, ways 103734395, 176494197, 176494194): untagged on 1103 m; the release says 110, so OSM does not corroborate it on the whole section and no number is spoken. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
       }
     },
     {
@@ -132,7 +132,7 @@
       "limit_check": {
         "status": "unverifiable",
         "date": "2026-10-26",
-        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM tags the motorway 110 on most of this stretch (2026-10-26), and the general motorway limit for cars is 110, but that is not the section's official limit. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal. OSM on 2026-10-26 (Overpass, data of 2026-10-26T16:45:20Z) along this section's carriageway from the start to the end (1898 m, ways 176494194, 176494201, 176494200, 92388774, 92388772): 110 on 1161 m, untagged on 736 m; the release says 110, so OSM does not corroborate it on the whole section and no number is spoken. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
       }
     },
     {
@@ -157,7 +157,7 @@
       "limit_check": {
         "status": "unverifiable",
         "date": "2026-10-26",
-        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM tags the motorway 110 on most of this stretch (2026-10-26), and the general motorway limit for cars is 110, but that is not the section's official limit. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal. OSM on 2026-10-26 (Overpass, data of 2026-10-26T16:45:20Z) along this section's carriageway from the start to the end (3854 m, ways 92388772, 128252145, 710475771, 133782521, 710476539, 710476538): 110 on 3473 m, 90 on 325 m, 70 on 56 m; the release says 110, so OSM does not corroborate it on the whole section and no number is spoken. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
       }
     },
     {
@@ -182,7 +182,7 @@
       "limit_check": {
         "status": "unverifiable",
         "date": "2026-10-26",
-        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM tags the motorway 110 on most of this stretch (2026-10-26), and the general motorway limit for cars is 110, but that is not the section's official limit. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal. OSM on 2026-10-26 (Overpass, data of 2026-10-26T16:45:20Z) along this section's carriageway from the start to the end (7228 m, ways 710476538, 133782524, 710476537, 133782519, 817128957, 256690124, 366797287, 374385786): 110 on 6230 m, 70 on 998 m; the release says 110, so OSM does not corroborate it on the whole section and no number is spoken. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
       }
     },
     {
@@ -205,9 +205,17 @@
       },
       "maxspeed": 110,
       "limit_check": {
-        "status": "unverifiable",
+        "status": "corroborated",
         "date": "2026-10-26",
-        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM tags the motorway 110 on most of this stretch (2026-10-26), and the general motorway limit for cars is 110, but that is not the section's official limit. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
+        "source": "https://mia.police.ge/ge/shida-qartlis-regionshi-saavtomobilo-sichqaris-kontrolis-12-seqtsia-amoqmeddeba/13166",
+        "source_date": "2019-12-08",
+        "osm_ways": [
+          374385786,
+          310195137,
+          357804015,
+          357804016
+        ],
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal. The 2019-12-08 release says 110, and OSM on 2026-10-26 (Overpass, data of 2026-10-26T16:45:20Z) tags 110 for this direction on every metre of the carriageway from the start to the end (7989 m, osm_ways in order): OSM 2026 agrees, so the number is spoken. OSM is not official and its mappers may have taken the number from the same release; the build walks the carriageway again every week and drops the number when any metre says otherwise. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
       }
     },
     {
@@ -230,9 +238,22 @@
       },
       "maxspeed": 110,
       "limit_check": {
-        "status": "unverifiable",
+        "status": "corroborated",
         "date": "2026-10-26",
-        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM tags the motorway 110 on most of this stretch (2026-10-26), and the general motorway limit for cars is 110, but that is not the section's official limit. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
+        "source": "https://mia.police.ge/ge/shida-qartlis-regionshi-saavtomobilo-sichqaris-kontrolis-12-seqtsia-amoqmeddeba/13166",
+        "source_date": "2019-12-08",
+        "osm_ways": [
+          357804016,
+          296628882,
+          296628881,
+          386343718,
+          379565184,
+          386343717,
+          357804009,
+          379565178,
+          319216836
+        ],
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal. The 2019-12-08 release says 110, and OSM on 2026-10-26 (Overpass, data of 2026-10-26T16:45:20Z) tags 110 for this direction on every metre of the carriageway from the start to the end (9977 m, osm_ways in order): OSM 2026 agrees, so the number is spoken. OSM is not official and its mappers may have taken the number from the same release; the build walks the carriageway again every week and drops the number when any metre says otherwise. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
       }
     },
     {
@@ -255,9 +276,23 @@
       },
       "maxspeed": 110,
       "limit_check": {
-        "status": "unverifiable",
+        "status": "corroborated",
         "date": "2026-10-26",
-        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM tags the motorway 110 on most of this stretch (2026-10-26), and the general motorway limit for cars is 110, but that is not the section's official limit. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
+        "source": "https://mia.police.ge/ge/shida-qartlis-regionshi-saavtomobilo-sichqaris-kontrolis-12-seqtsia-amoqmeddeba/13166",
+        "source_date": "2019-12-08",
+        "osm_ways": [
+          379565185,
+          376496509,
+          379565182,
+          379565179,
+          379559236,
+          379559234,
+          324308287,
+          296628880,
+          296628883,
+          386379841
+        ],
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal. The 2019-12-08 release says 110, and OSM on 2026-10-26 (Overpass, data of 2026-10-26T16:45:20Z) tags 110 for this direction on every metre of the carriageway from the start to the end (9975 m, osm_ways in order): OSM 2026 agrees, so the number is spoken. OSM is not official and its mappers may have taken the number from the same release; the build walks the carriageway again every week and drops the number when any metre says otherwise. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
       }
     },
     {
@@ -280,9 +315,16 @@
       },
       "maxspeed": 110,
       "limit_check": {
-        "status": "unverifiable",
+        "status": "corroborated",
         "date": "2026-10-26",
-        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM tags the motorway 110 on most of this stretch (2026-10-26), and the general motorway limit for cars is 110, but that is not the section's official limit. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
+        "source": "https://mia.police.ge/ge/shida-qartlis-regionshi-saavtomobilo-sichqaris-kontrolis-12-seqtsia-amoqmeddeba/13166",
+        "source_date": "2019-12-08",
+        "osm_ways": [
+          386379841,
+          379839049,
+          310195138
+        ],
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal. The 2019-12-08 release says 110, and OSM on 2026-10-26 (Overpass, data of 2026-10-26T16:45:20Z) tags 110 for this direction on every metre of the carriageway from the start to the end (7985 m, osm_ways in order): OSM 2026 agrees, so the number is spoken. OSM is not official and its mappers may have taken the number from the same release; the build walks the carriageway again every week and drops the number when any metre says otherwise. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
       }
     },
     {
@@ -307,7 +349,7 @@
       "limit_check": {
         "status": "unverifiable",
         "date": "2026-10-26",
-        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM tags the motorway 110 on most of this stretch (2026-10-26), and the general motorway limit for cars is 110, but that is not the section's official limit. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal. OSM on 2026-10-26 (Overpass, data of 2026-10-26T16:45:20Z) along this section's carriageway from the start to the end (7258 m, ways 310195138, 366797519, 950271104, 1268613842, 950270636, 1412139343, 1268613841, 133782526, 1268613840): 110 on 5829 m, 70 on 1026 m, 90 on 403 m; the release says 110, so OSM does not corroborate it on the whole section and no number is spoken. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
       }
     },
     {
@@ -332,7 +374,7 @@
       "limit_check": {
         "status": "unverifiable",
         "date": "2026-10-26",
-        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM tags the motorway 110 on most of this stretch (2026-10-26), and the general motorway limit for cars is 110, but that is not the section's official limit. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal. OSM on 2026-10-26 (Overpass, data of 2026-10-26T16:45:20Z) along this section's carriageway from the start to the end (3840 m, ways 1268613840, 133782522, 79623736, 93688788): 110 on 3782 m, 70 on 58 m; the release says 110, so OSM does not corroborate it on the whole section and no number is spoken. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
       }
     },
     {
@@ -357,7 +399,7 @@
       "limit_check": {
         "status": "unverifiable",
         "date": "2026-10-26",
-        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM tags the motorway 110 on most of this stretch (2026-10-26), and the general motorway limit for cars is 110, but that is not the section's official limit. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal. OSM on 2026-10-26 (Overpass, data of 2026-10-26T16:45:20Z) along this section's carriageway from the start to the end (1896 m, ways 93688788, 92388776, 92388775, 176494198, 176494183): 110 on 1164 m, untagged on 732 m; the release says 110, so OSM does not corroborate it on the whole section and no number is spoken. Since 2025-12-22 the ministry also fines C/D-category vehicles above 80 on differentiated motorway sections (interpressnews.ge, 2025-12-21)."
       }
     },
     {
@@ -382,7 +424,7 @@
       "limit_check": {
         "status": "unverifiable",
         "date": "2026-10-26",
-        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM (2026-10-26) tags this stretch 70 and 60 where the 2019 release says 80: it may have changed."
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal. OSM on 2026-10-26 (Overpass, data of 2026-10-26T16:45:20Z) along this section's carriageway from the start to the end (1983 m, ways 689467020, 1016462098): 80 on 1815 m, 60 on 168 m; the release says 80, so OSM does not corroborate it on the whole section and no number is spoken."
       }
     },
     {
@@ -407,7 +449,7 @@
       "limit_check": {
         "status": "unverifiable",
         "date": "2026-10-26",
-        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM (2026-10-26) tags this stretch 70 and 60 where the 2019 release says 80: it may have changed."
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal. OSM on 2026-10-26 (Overpass, data of 2026-10-26T16:45:20Z) along this section's carriageway from the start to the end (1983 m, ways 1016462098, 689467020): 80 on 1815 m, 60 on 168 m; the release says 80, so OSM does not corroborate it on the whole section and no number is spoken."
       }
     },
     {
@@ -432,7 +474,7 @@
       "limit_check": {
         "status": "unverifiable",
         "date": "2026-10-26",
-        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM (2026-10-26) tags this stretch 70 and 60 where the 2019 release says 80: it may have changed."
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal. OSM on 2026-10-26 (Overpass, data of 2026-10-26T16:45:20Z) along this section's carriageway from the start to the end (3106 m, ways 1016462098, 26543395, 1232217008, 1016462099, 1016462100): 60 on 2208 m, 50 on 899 m; the release says 60, so OSM does not corroborate it on the whole section and no number is spoken."
       }
     },
     {
@@ -457,7 +499,7 @@
       "limit_check": {
         "status": "unverifiable",
         "date": "2026-10-26",
-        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM (2026-10-26) tags this stretch 70 and 60 where the 2019 release says 80: it may have changed."
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal. OSM on 2026-10-26 (Overpass, data of 2026-10-26T16:45:20Z) along this section's carriageway from the start to the end (3106 m, ways 1016462100, 1016462099, 1232217008, 26543395, 1016462098): 60 on 2208 m, 50 on 899 m; the release says 60, so OSM does not corroborate it on the whole section and no number is spoken."
       }
     },
     {
@@ -482,7 +524,7 @@
       "limit_check": {
         "status": "unverifiable",
         "date": "2026-10-26",
-        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM (2026-10-26) tags this stretch 70 and 60 where the 2019 release says 80: it may have changed."
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal. OSM on 2026-10-26 (Overpass, data of 2026-10-26T16:45:20Z) along this section's carriageway from the start to the end (3983 m, ways 1016462100, 105720080, 1016462101, 1267370163, 689467019): 60 on 3982 m; the release says 80, so OSM does not corroborate it on the whole section and no number is spoken."
       }
     },
     {
@@ -507,7 +549,7 @@
       "limit_check": {
         "status": "unverifiable",
         "date": "2026-10-26",
-        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM (2026-10-26) tags this stretch 70 and 60 where the 2019 release says 80: it may have changed."
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal. OSM on 2026-10-26 (Overpass, data of 2026-10-26T16:45:20Z) along this section's carriageway from the start to the end (3983 m, ways 689467019, 1267370163, 1016462101, 105720080, 1016462100): 60 on 2427 m, 80 on 1555 m; the release says 80, so OSM does not corroborate it on the whole section and no number is spoken."
       }
     },
     {
@@ -532,7 +574,7 @@
       "limit_check": {
         "status": "unverifiable",
         "date": "2026-10-26",
-        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; S2 between Poti and Grigoleti stays a two-lane road (no rebuild found); OSM tags 90 on part of it."
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal. OSM on 2026-10-26 (Overpass, data of 2026-10-26T16:45:20Z) along this section's carriageway from the start to the end (7996 m, ways 27120571, 102254668, 102254972, 1151635306, 1155905649, 1151635307, 630216979): 60 on 4378 m, 90 on 3538 m, untagged on 79 m; the release says 90, so OSM does not corroborate it on the whole section and no number is spoken. S2 between Poti and Grigoleti stays a two-lane road (no rebuild found)."
       }
     },
     {
@@ -557,7 +599,7 @@
       "limit_check": {
         "status": "unverifiable",
         "date": "2026-10-26",
-        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; S2 between Poti and Grigoleti stays a two-lane road (no rebuild found); OSM tags 90 on part of it."
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal. OSM on 2026-10-26 (Overpass, data of 2026-10-26T16:45:20Z) along this section's carriageway from the start to the end (8010 m, ways 630216979, 1151635308, 1155905655, 1155905651, 1299865398, 1151635305, 102254972, 102254668, 27120571): 60 on 4378 m, 90 on 3538 m, untagged on 94 m; the release says 90, so OSM does not corroborate it on the whole section and no number is spoken. S2 between Poti and Grigoleti stays a two-lane road (no rebuild found)."
       }
     },
     {
@@ -580,9 +622,16 @@
       },
       "maxspeed": 60,
       "limit_check": {
-        "status": "unverifiable",
+        "status": "corroborated",
         "date": "2026-10-26",
-        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; 60 km/h over 10 km of the Kutaisi-Samtredia road is the 2019 release's figure only."
+        "source": "https://mia.police.ge/ge/shinagan-saqmeta-saministrom-imeretisa-da-samegrelos-regionebshi-sichqaris-kontrolis-8-akhali-seqtsia-aamoqmeda-qveknis-masshtabit-2086-videokamera-funqtsionirebs/12493",
+        "source_date": "2019-02-18",
+        "osm_ways": [
+          123111266,
+          1552036018,
+          1110030283
+        ],
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal. The 2019-02-18 release says 60, and OSM on 2026-10-26 (Overpass, data of 2026-10-26T16:45:20Z) tags 60 for this direction on every metre of the carriageway from the start to the end (9973 m, osm_ways in order): OSM 2026 agrees, so the number is spoken. OSM is not official and its mappers may have taken the number from the same release; the build walks the carriageway again every week and drops the number when any metre says otherwise."
       }
     },
     {
@@ -605,9 +654,16 @@
       },
       "maxspeed": 60,
       "limit_check": {
-        "status": "unverifiable",
+        "status": "corroborated",
         "date": "2026-10-26",
-        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; 60 km/h over 10 km of the Kutaisi-Samtredia road is the 2019 release's figure only."
+        "source": "https://mia.police.ge/ge/shinagan-saqmeta-saministrom-imeretisa-da-samegrelos-regionebshi-sichqaris-kontrolis-8-akhali-seqtsia-aamoqmeda-qveknis-masshtabit-2086-videokamera-funqtsionirebs/12493",
+        "source_date": "2019-02-18",
+        "osm_ways": [
+          1110030283,
+          1552036018,
+          123111266
+        ],
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal. The 2019-02-18 release says 60, and OSM on 2026-10-26 (Overpass, data of 2026-10-26T16:45:20Z) tags 60 for this direction on every metre of the carriageway from the start to the end (9973 m, osm_ways in order): OSM 2026 agrees, so the number is spoken. OSM is not official and its mappers may have taken the number from the same release; the build walks the carriageway again every week and drops the number when any metre says otherwise."
       }
     },
     {
@@ -632,7 +688,7 @@
       "limit_check": {
         "status": "unverifiable",
         "date": "2026-10-26",
-        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM tags the Kakheti highway 80 there (2026-10-26)."
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal. OSM on 2026-10-26 (Overpass, data of 2026-10-26T16:45:20Z) along this section's carriageway from the start to the end (2321 m, ways 20820207, 220707218, 823188766, 215355022, 1332838288, 1332838289, 1337557787, 823188768): 80 on 1952 m, untagged on 369 m; the release says 80, so OSM does not corroborate it on the whole section and no number is spoken."
       }
     },
     {
@@ -657,7 +713,7 @@
       "limit_check": {
         "status": "unverifiable",
         "date": "2026-10-26",
-        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal; OSM tags the Kakheti highway 80 there (2026-10-26)."
+        "note": "No current per-section list is published: 112.gov.ge (page_id=280) gives only totals (692 sections, 2421 km, 2026) and police.ge/112.gov.ge releases after 2021 name no change to this section, nor its removal. OSM on 2026-10-26 (Overpass, data of 2026-10-26T16:45:20Z) along this section's carriageway from the start to the end (2325 m, ways 823188768, 1337557787, 1332838289, 25700728, 215355026, 220707219): 80 on 1957 m, untagged on 367 m; the release says 80, so OSM does not corroborate it on the whole section and no number is spoken."
       }
     }
   ],

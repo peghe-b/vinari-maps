@@ -67,12 +67,22 @@ finds no such road (the road was rebuilt or renamed in OSM) is dropped and
 counted (sections_unplaced), never guessed. Such a row has osm
 'mia-<release>-<item>' and heading_src 'section'.
 
-Its limit is spoken only when a person checked it against a CURRENT official
-source (the section's limit_check: status 'confirmed', the date and the
-source's url): then maxspeed is the file's and maxspeed_src 'mia', unless the
+Its limit is spoken in two cases. 'confirmed': a person checked it against
+a CURRENT official source (the section's limit_check with the date and the
+source's url); then maxspeed is the file's and maxspeed_src 'mia', unless the
 road's own explicit OSM limit there says otherwise: then none
-(sections_maxspeed_conflict), since one of the two is out of date. Without
-that check (status 'unverifiable', or no limit_check at all) the row keeps
+(sections_maxspeed_conflict), since one of the two is out of date.
+'corroborated': the official release's number (its url and date) and, on
+the day of the check, OSM's maxspeed on every metre of the carriageway from
+the start to the end (the way ids in limit_check.osm_ways) say the same. The
+build checks that again every week (osm_limits_along): it walks the
+section's carriageway in the new extract, and one metre with another limit,
+or with none, or a walk that does not reach the end, drops the number
+(sections_maxspeed_osm_disagrees); a mapper's later edit, right or wrong,
+then silences the number instead of being read out beside the release's.
+Two sources from different years that agree are better than either alone,
+but OSM is not official, so this is the weaker of the two. Without either
+check (status 'unverifiable', or no limit_check at all) the row keeps
 the section and its warning but maxspeed and maxspeed_src are NULL
 (sections_maxspeed_unconfirmed): the apps already say "average speed is
 measured" with no number when maxspeed is NULL (NavCameraWatch.limit on iOS
@@ -87,6 +97,7 @@ never a complete list, and the road signs always have priority.
 Stdlib only, so the unit tests need nothing installed.
 """
 
+import heapq
 import json
 import math
 from collections import Counter
@@ -275,6 +286,14 @@ class CameraCollector:
         self.relations = []           # (relation id, tags, [(type, ref, role)])
         self.watch = set()            # member node ids whose location is needed
         self.sections = list(cfg.get("_sections") or ())   # curated sections (load_sections)
+        # a corroborated section's limit is re-checked on its whole carriageway
+        # (osm_limits_along): keep every way of its road in a box around it
+        pad = SECTION_PAD_DEG
+        self.corridors = [(s["road"], min(s["from"]["lat"], s["to"]["lat"]) - pad,
+                           max(s["from"]["lat"], s["to"]["lat"]) + pad,
+                           min(s["from"]["lon"], s["to"]["lon"]) - pad,
+                           max(s["from"]["lon"], s["to"]["lon"]) + pad)
+                          for s in self.sections if limit_status(s) == "corroborated"]
         self.anchors = [(s[e]["lat"], s[e]["lon"]) for s in self.sections for e in ("from", "to")]
         self.coords = {}              # member node id -> (lon, lat)
         self.roads = {}               # way id -> {"id", "tags", "refs", "coords"}
@@ -329,7 +348,7 @@ class CameraCollector:
         pts = [c for c in coords if c is not None]
         if not pts:
             return
-        if not member and not any(ref in self.cameras for ref in refs):
+        if not member and not any(ref in self.cameras for ref in refs) and not self._in_corridor(tags, pts):
             m = self.margin_deg
             lat0 = min(p[1] for p in pts) - m
             lat1 = max(p[1] for p in pts) + m
@@ -346,6 +365,13 @@ class CameraCollector:
             if not near:
                 return
         self.roads[osm_id] = {"id": osm_id, "tags": dict(tags), "refs": list(refs), "coords": list(coords)}
+
+    def _in_corridor(self, tags, pts):
+        """A way of a corroborated section's road inside the box around it."""
+        for want, lat0, lat1, lon0, lon1 in self.corridors:
+            if road_matches(tags, want) and any(lat0 <= p[1] <= lat1 and lon0 <= p[0] <= lon1 for p in pts):
+                return True
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -749,17 +775,79 @@ def place_on_road(index, lat, lon, travel, want, snap_m, line_max_deg):
             if angle_diff(allowed, along) > 90.0:
                 continue                  # the other carriageway
         point = project(lat, lon, road["coords"][i], road["coords"][i + 1])
-        return Road(road, line, 0.0, False), point, along
+        on = Road(road, line, 0.0, False)
+        on.seg, on.fwd = i, angle_diff(along, line) <= 90.0
+        return on, point, along
     return None
 
 
-LIMIT_STATUSES = ("confirmed", "unverifiable")
+def osm_limits_along(index, start, end, want, cfg, max_m):
+    """[(km/h or None, metres)] on the carriageway from start to end (each a
+    place_on_road result): the ways of the wanted road, no *_link, one-way
+    ways only in their direction, the shortest walk; each piece with the
+    road's OSM limit for that direction (maxspeed:forward/backward, else
+    maxspeed). None when the walk does not reach the end within max_m."""
+    zones, allowed = cfg.get("maxspeed_zones"), tuple(cfg["maxspeed_range"])
+
+    def limit(way, fwd):
+        tags = way["tags"]
+        return parse_maxspeed(tags.get("maxspeed:forward" if fwd else "maxspeed:backward") or tags.get("maxspeed"),
+                              zones, allowed)
+
+    (s, (slat, slon), _), (e, (elat, elon), _) = start, end
+    if s.way is e.way and s.seg == e.seg and s.fwd == e.fwd:
+        return [(limit(s.way, s.fwd), distance_m(slat, slon, elat, elon))]
+    s_node = s.seg + 1 if s.fwd else s.seg
+    e_node = e.seg if e.fwd else e.seg + 1
+    s_pt, e_pt = s.way["coords"][s_node], e.way["coords"][e_node]
+    first = (limit(s.way, s.fwd), distance_m(slat, slon, s_pt[1], s_pt[0]))
+    last = (limit(e.way, e.fwd), distance_m(e_pt[1], e_pt[0], elat, elon))
+    source, target = s.way["refs"][s_node], e.way["refs"][e_node]
+    best, prev, queue = {source: 0.0}, {}, [(0.0, source)]
+    while queue:
+        d, node = heapq.heappop(queue)
+        if node == target:
+            break
+        if d > best.get(node, math.inf) or d > max_m:
+            continue
+        for way, i in index.on_node.get(node, ()):
+            tags = way["tags"]
+            if tags.get("highway", "").endswith("_link") or not road_matches(tags, want):
+                continue
+            sign = oneway_sign(tags)
+            for j, fwd in ((i + 1, True), (i - 1, False)):
+                if not 0 <= j < len(way["refs"]) or (sign > 0 and not fwd) or (sign < 0 and fwd):
+                    continue
+                a, b = way["coords"][i], way["coords"][j]
+                if a is None or b is None:
+                    continue
+                nd = d + distance_m(a[1], a[0], b[1], b[0])
+                if nd < best.get(way["refs"][j], math.inf):
+                    best[way["refs"][j]] = nd
+                    prev[way["refs"][j]] = (node, limit(way, fwd), nd - d)
+                    heapq.heappush(queue, (nd, way["refs"][j]))
+    if target not in prev and target != source:
+        return None
+    pieces, node = [], target
+    while node != source:
+        node, kmh, metres = prev[node]
+        pieces.append((kmh, metres))
+    return [first] + pieces[::-1] + [last]
+
+
+LIMIT_STATUSES = ("confirmed", "corroborated", "unverifiable")
+SECTION_PAD_DEG = 0.02       # the box around a corroborated section whose road ways are kept
+
+
+def limit_status(section):
+    """The section's limit_check status, None without one."""
+    return (section.get("limit_check") or {}).get("status")
 
 
 def limit_confirmed(section):
     """True when the section's limit was checked against a current official
-    source (limit_check status 'confirmed'): only then is the number spoken."""
-    return (section.get("limit_check") or {}).get("status") == "confirmed"
+    source (limit_check status 'confirmed')."""
+    return limit_status(section) == "confirmed"
 
 
 def section_rows(collector, index, zones, cfg, stats):
@@ -783,7 +871,19 @@ def section_rows(collector, index, zones, cfg, stats):
             continue
         speed, src = s["maxspeed"], "mia"
         own = road_maxspeed(road, heading, cfg)
-        if not limit_confirmed(s):
+        status = limit_status(s)
+        if status == "corroborated":
+            gap = distance_m(a["lat"], a["lon"], b["lat"], b["lon"])
+            along = osm_limits_along(index, start, end, s["road"], cfg, max(3.0 * gap, gap + 3000.0))
+            other = None if along is None else sorted({str(k) for k, m in along if k != speed and m >= 1.0})
+            if along is None or other:
+                stats["sections_maxspeed_osm_disagrees"] += 1
+                stats[f"sections_maxspeed_osm_disagrees {s['id']} {speed} vs "
+                      f"{'no walk' if along is None else '/'.join(other)}"] += 1
+                speed, src = None, None
+            else:
+                stats["sections_maxspeed_corroborated"] += 1
+        elif status != "confirmed":
             stats["sections_maxspeed_unconfirmed"] += 1
             speed, src = None, None
         elif own is not None and own != speed:
@@ -842,6 +942,12 @@ def load_sections(path, problems):
                 problems.append(f"sections: {sid} limit_check needs its date (YYYY-MM-DD)")
             elif check["status"] == "confirmed" and not str(check.get("source", "")).startswith("https://"):
                 problems.append(f"sections: {sid} limit_check confirmed needs the current official source (https url)")
+            elif check["status"] == "corroborated" and not (
+                    str(check.get("source", "")).startswith("https://") and check.get("note")
+                    and isinstance(check.get("osm_ways"), list) and check["osm_ways"]
+                    and all(isinstance(w, int) and w > 0 for w in check["osm_ways"])):
+                problems.append(f"sections: {sid} limit_check corroborated needs the official source (https url), "
+                                f"a note and osm_ways (the OSM way ids that agree)")
             elif check["status"] == "unverifiable" and not check.get("note"):
                 problems.append(f"sections: {sid} limit_check unverifiable needs a note (what was looked at)")
         if not problems:

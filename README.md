@@ -348,12 +348,19 @@ have `osm` `mia-<release>-<item>` and `heading_src` `section`. The releases
 are from 2018 to 2021, so a section may have changed since; this is never the
 full list. The limit is spoken only when the section's `limit_check` is
 `confirmed` (a person checked it against a current official source, with its
-date and url): then `maxspeed` is the file's and `maxspeed_src` `mia`, unless
-the road's own OSM limit there differs (then none). An `unverifiable` check,
-or none, keeps the section and its warning with `maxspeed` NULL, which both
-apps already say without a number. On 2026-10-26 all 23 were `unverifiable`:
-the ministry runs 692 sections (112.gov.ge, 2026) but publishes no current
-list.
+date and url; then `maxspeed` is the file's and `maxspeed_src` `mia`, unless
+the road's own OSM limit there differs, then none) or `corroborated` (the
+release's number, with its url and date, and OSM's `maxspeed` on every metre
+of the section's carriageway on the day of the check, `osm_ways`, are the
+same). A corroborated limit is checked again in every build: the build walks
+the section's carriageway in the new extract (`osm_limits_along`) and drops
+the number when any piece has another limit or none, or the walk does not
+reach the end (`sections_maxspeed_osm_disagrees` in the build report). An
+`unverifiable` check, or none, keeps the section and its warning with
+`maxspeed` NULL, which both apps already say without a number. The ministry
+runs 692 sections (112.gov.ge, 2026) but publishes no current list, so on
+2026-10-26 none was `confirmed`; 6 were `corroborated` (S1 km 94-112 both
+ways, the Kutaisi-Samtredia road km 18-28 both ways) and 17 `unverifiable`.
 
 Road hazards (schema 4). A table `hazards` (no search index; schema in
 `scripts/geocoder_hazards.py`, rules in `config/geocoder.json` `hazards`) for
