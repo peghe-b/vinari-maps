@@ -630,9 +630,25 @@ jobs:
           name: clipped-extract
           path: build/input
 
+      - name: Restore the extra sources kept by the last green run
+        # used only when a source server is down (see build_basemap.sh); weekly runs keep the cache entry alive
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: build/source-cache
+          key: basemap-sources-${{ github.run_id }}
+          restore-keys: basemap-sources-
+
       - name: Build georgia.pmtiles
         timeout-minutes: 60
+        env:
+          SOURCE_CACHE: build/source-cache
         run: bash scripts/build_basemap.sh build/input/georgia-clipped.osm.pbf build/basemap build/logs
+
+      - name: Keep the extra sources for the next run
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: build/source-cache
+          key: basemap-sources-${{ github.run_id }}
 
       - name: Disk use (run time, disk and RAM are unmeasured until the first run)
         if: always()

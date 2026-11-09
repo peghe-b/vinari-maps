@@ -87,8 +87,18 @@ for i in $(seq 0 $(($(jq '.sources | length' "$CONFIG") - 1))); do
   name=$(cfg ".sources[$i].name")
   file=$(cfg ".sources[$i].file")
   started=$SECONDS
-  fetch "$(cfg ".sources[$i].url")" "$WORK/sources/$file" || { echo "::error::$name download failed"; exit 1; }
-  echo "ok  $name downloaded ($((SECONDS - started)) s, $(stat -c %s "$WORK/sources/$file") bytes)"
+  if fetch "$(cfg ".sources[$i].url")" "$WORK/sources/$file"; then
+    echo "ok  $name downloaded ($((SECONDS - started)) s, $(stat -c %s "$WORK/sources/$file") bytes)"
+    # keep it for the next run, in case this server is down then (hard link: no extra disk)
+    if [ -n "${SOURCE_CACHE:-}" ]; then mkdir -p "$SOURCE_CACHE"; ln -f "$WORK/sources/$file" "$SOURCE_CACHE/$file" 2>/dev/null || cp "$WORK/sources/$file" "$SOURCE_CACHE/$file"; fi
+  elif [ -n "${SOURCE_CACHE:-}" ] && [ -s "$SOURCE_CACHE/$file" ]; then
+    # the server is unreachable (9 Nov 2026: osmdata.openstreetmap.de was down for hours and failed the weekly build);
+    # the copy from the last green run is a few days old at most, and verify-sources still checks its size
+    cp "$SOURCE_CACHE/$file" "$WORK/sources/$file"
+    echo "::warning::$name: download failed, using the copy kept by the last green run ($(date -u -r "$SOURCE_CACHE/$file" +%F), $(stat -c %s "$WORK/sources/$file") bytes)"
+  else
+    echo "::error::$name download failed and no kept copy exists"; exit 1
+  fi
 done
 python3 "$HERE/basemap.py" verify-sources --dir "$WORK/sources" --out "$WORK/sources.json"
 
